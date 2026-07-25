@@ -44,12 +44,18 @@ export function deriveProvider(host = '', caps = new Set()) {
 
 /**
  * Pick the thread-resolution strategy from advertised capabilities.
+ *
+ * `thread-id`: the server hands us a stable per-message thread id we can fetch
+ * and search — Gmail (`X-GM-EXT-1`) or RFC 8474 (`OBJECTID`). imapflow abstracts
+ * both behind the same `threadId` fetch/search field, so they share one path.
+ * `reconstruct`: no thread id — walk `References`/`In-Reply-To` client-side.
+ * (imapflow has no RFC 5256 `THREAD` command, so there is no server-side
+ * reconstruct path to prefer.)
  * @param {Set<string>} caps
  * @returns {ThreadStrategy}
  */
 export function deriveThreadStrategy(caps = new Set()) {
-  if (caps.has('X-GM-EXT-1')) return 'gmail-thrid';
-  for (const c of caps) if (c.startsWith('THREAD=')) return 'imap-thread';
+  if (caps.has('X-GM-EXT-1') || caps.has('OBJECTID')) return 'thread-id';
   return 'reconstruct';
 }
 

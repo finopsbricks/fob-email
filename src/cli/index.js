@@ -14,6 +14,7 @@
 import yargs from 'yargs';
 
 import { buildEmailsSubcommands } from './emails/index.js';
+import { buildThreadsSubcommands } from './threads/index.js';
 import { buildFoldersSubcommands } from './folders/index.js';
 import { buildConfigSubcommands } from './config/index.js';
 
@@ -22,6 +23,7 @@ export function run(argv) {
     .scriptName('fob-email')
     .usage('$0 <resource> <action> [options]')
     .command('emails <action>', 'Read and manage emails', buildEmailsSubcommands)
+    .command('threads <action>', 'Read conversations', buildThreadsSubcommands)
     .command('folders <action>', 'List and manage folders', buildFoldersSubcommands)
     .command('config <resource>', 'Manage email account credentials (alias: accounts)', buildConfigSubcommands)
     .demandCommand(1, 'Specify a resource. Try `fob-email --help`.')

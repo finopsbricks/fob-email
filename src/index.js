@@ -2,6 +2,7 @@ import { connectSession } from './engine/imap.js';
 import { createTransport } from './engine/transport.js';
 import { buildEmails } from './resources/emails.js';
 import { buildFolders } from './resources/folders.js';
+import { buildThreads } from './resources/threads.js';
 
 export { connectSession };
 export { filterEmails } from './domain/filter.js';
@@ -27,6 +28,7 @@ export function fobEmail(account) {
   const ctx = createTransport(account);
   return {
     emails: buildEmails(ctx),
+    threads: buildThreads(ctx),
     folders: buildFolders(ctx),
     /** Tear down whichever connections were opened. */
     close: () => ctx.close(),

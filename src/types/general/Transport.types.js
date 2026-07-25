@@ -10,6 +10,8 @@
  * @property {(opts: object) => Promise<any>} fetchFull
  * @property {(opts: object) => Promise<Array<object>>} fetchAttachments
  * @property {() => Promise<Array<object>>} listFolders
+ * @property {(opts?: object) => Promise<Array<object>>} listThreads
+ * @property {(opts: object) => Promise<{ id: string, messages: any[] }>} resolveThread
  * @property {(opts: object) => Promise<any>} setFlag
  * @property {(opts: object) => Promise<any>} move
  * @property {(opts: object) => Promise<any>} expunge

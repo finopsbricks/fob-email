@@ -8,7 +8,7 @@
  * Special-use folders and finer capability flags join in Phase 6 (drafts).
  *
  * @typedef {'gmail'|'outlook'|'fastmail'|'yahoo'|'generic'} Provider
- * @typedef {'gmail-thrid'|'imap-thread'|'reconstruct'} ThreadStrategy
+ * @typedef {'thread-id'|'reconstruct'} ThreadStrategy
  *
  * @typedef {Object} Capabilities
  * @property {Provider} provider

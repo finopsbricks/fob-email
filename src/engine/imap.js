@@ -2,6 +2,7 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { resolveAccount } from '../config.js';
 import { deriveProfile } from './capabilities.js';
+import { parseMessageIds, groupThreads, threadOf } from '../domain/threads.js';
 
 /**
  * A live IMAP session — the only place that talks IMAP.
@@ -53,6 +54,14 @@ export async function connectSession(account) {
       lock.release();
     }
   };
+
+  // The thread strategy is a property of the account (D6): read the cached value
+  // resolved at `config accounts add`/refresh; if a profile was never probed (or
+  // this is a raw config object), derive it once from the live capabilities — a
+  // single deterministic decision, never a per-call cascade.
+  const strategyFor = () =>
+    cfg.threadStrategy ||
+    deriveProfile({ host: cfg.imap.host, capabilities: client.capabilities }).threadStrategy;
 
   return {
     /**
@@ -138,6 +147,58 @@ export async function connectSession(account) {
         return { id, deleted: true };
       }),
 
+    /**
+     * List conversations in a folder (newest activity first). Groups by the
+     * server thread id (`thread-id`) or by reconstructed reference links.
+     * Returns thread summaries `{ id, count, subject, latest }`.
+     */
+    listThreads: ({ folder = 'INBOX', limit = 50 } = {}) =>
+      withFolder(folder, null, async (c) => {
+        const strategy = strategyFor();
+        const all = (await c.search({ all: true }, { uid: true })) || [];
+        // Over-sample the window so a thread's older messages are in scope.
+        const uids = all.slice(-Math.max(limit * 4, limit));
+        const nodes = await fetchThreadNodes(c, uids, strategy === 'thread-id');
+        const groups = strategy === 'thread-id' ? groupByThreadId(nodes) : groupThreads(nodes);
+        return groups
+          .map((g) => {
+            const sorted = g.slice().sort(byDateAscNode);
+            const latest = sorted[sorted.length - 1];
+            return {
+              id: threadKey(sorted, strategy),
+              count: sorted.length,
+              subject: latest.envelope.subject,
+              latest: latest.envelope,
+            };
+          })
+          .sort((a, b) => new Date(b.latest.date || 0).getTime() - new Date(a.latest.date || 0).getTime())
+          .slice(0, limit);
+      }),
+
+    /**
+     * Resolve the full conversation containing message `id` (oldest→newest).
+     * `thread-id`: fetch the message's thread id, then search it. `reconstruct`:
+     * walk References/In-Reply-To over a window. Returns `{ id, messages }`.
+     */
+    resolveThread: ({ id, folder = 'INBOX', uidValidity } = {}) =>
+      withFolder(folder, uidValidity, async (c) => {
+        const strategy = strategyFor();
+        if (strategy === 'thread-id') {
+          const target = await c.fetchOne(id, { uid: true, threadId: true }, { uid: true });
+          if (target && target.threadId) {
+            const uids = (await c.search({ threadId: target.threadId }, { uid: true })) || [];
+            const nodes = await fetchThreadNodes(c, uids.length ? uids : [id], true);
+            return { id: String(target.threadId), messages: nodes.sort(byDateAscNode).map((n) => n.envelope) };
+          }
+        }
+        // reconstruct (or thread-id with no id on the message)
+        const uids = ((await c.search({ all: true }, { uid: true })) || []).slice(-500);
+        const nodes = await fetchThreadNodes(c, uids, false);
+        const group = threadOf(nodes, Number(id));
+        const chosen = group.length ? group : nodes.filter((n) => n.id === Number(id));
+        return { id: String(id), messages: chosen.map((n) => n.envelope) };
+      }),
+
     /** List folders with basic metadata. */
     listFolders: async () => {
       const boxes = await client.list();
@@ -191,6 +252,74 @@ async function fetchEnvelopes(c, query, limit) {
     if (msg) out.push(toEnvelope(msg));
   }
   return out;
+}
+
+/** Fetch thread nodes (envelope + optional server threadId + reference links). */
+async function fetchThreadNodes(c, uids, withThreadId) {
+  const nodes = [];
+  for (const uid of uids) {
+    const msg = await c.fetchOne(
+      uid,
+      { uid: true, envelope: true, threadId: withThreadId, headers: ['references', 'in-reply-to'] },
+      { uid: true },
+    );
+    if (!msg) continue;
+    const env = msg.envelope || {};
+    const raw = msg.headers ? msg.headers.toString() : '';
+    const refs = [...parseMessageIds(headerValue(raw, 'references')), ...parseMessageIds(env.inReplyTo)];
+    nodes.push({
+      id: Number(msg.uid),
+      messageId: env.messageId || null,
+      threadId: msg.threadId || null,
+      refs,
+      date: env.date ? new Date(env.date).toISOString() : null,
+      envelope: toEnvelope(msg),
+    });
+  }
+  return nodes;
+}
+
+/** Read one header value from a raw header block, joining folded continuation lines. */
+function headerValue(raw, name) {
+  const lower = name.toLowerCase();
+  let value = null;
+  for (const line of String(raw).split(/\r?\n/)) {
+    if (value !== null) {
+      if (/^\s/.test(line)) {
+        value += ` ${line.trim()}`;
+        continue;
+      }
+      break;
+    }
+    const idx = line.indexOf(':');
+    if (idx > 0 && line.slice(0, idx).trim().toLowerCase() === lower) value = line.slice(idx + 1).trim();
+  }
+  return value;
+}
+
+/** Group nodes by the server's thread id (fallback to message-id / uid). */
+function groupByThreadId(nodes) {
+  const groups = new Map();
+  for (const n of nodes) {
+    const key = n.threadId || n.messageId || `uid:${n.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(n);
+  }
+  return [...groups.values()];
+}
+
+/** Stable display key for a sorted thread. */
+function threadKey(sorted, strategy) {
+  if (strategy === 'thread-id') {
+    const withId = sorted.find((n) => n.threadId);
+    if (withId) return String(withId.threadId);
+  }
+  const root = sorted[0];
+  return root.messageId || `uid:${root.id}`;
+}
+
+function byDateAscNode(a, b) {
+  return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
 }
 
 function uidValidityOf(client) {

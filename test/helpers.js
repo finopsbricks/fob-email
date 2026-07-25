@@ -44,6 +44,7 @@ export function captureOutput() {
 export function fakeClient(canned = {}) {
   const calls = {
     list: [], search: [], get: [], download: [], mark: [], move: [], delete: [], send: [],
+    threads: { list: [], show: [] },
     folders: { list: [], create: [], rename: [], delete: [] },
     closed: 0,
   };
@@ -59,6 +60,10 @@ export function fakeClient(canned = {}) {
       move: async (id, to, opts) => (calls.move.push({ id, to, opts }), ret(canned.move, { id, to })),
       delete: async (id, opts) => (calls.delete.push({ id, opts }), ret(canned.delete, { id, deleted: true })),
       send: async (message) => (calls.send.push(message), ret(canned.send, { messageId: '<sent@x>', accepted: message.to, rejected: [] })),
+    },
+    threads: {
+      list: async (opts) => (calls.threads.list.push(opts), ret(canned.threadsList, [])),
+      show: async (id, opts) => (calls.threads.show.push({ id, opts }), ret(canned.thread, { id: String(id), messages: [] })),
     },
     folders: {
       list: async () => (calls.folders.list.push(true), ret(canned.foldersList, [])),

@@ -25,10 +25,10 @@ test('deriveProvider names known hosts, falls back to generic', () => {
   assert.equal(deriveProvider('mx.internal', new Set(['X-GM-EXT-1'])), 'gmail');
 });
 
-test('deriveThreadStrategy prefers gmail, then RFC 5256 THREAD, else reconstruct', () => {
-  assert.equal(deriveThreadStrategy(new Set(['X-GM-EXT-1', 'THREAD=REFERENCES'])), 'gmail-thrid');
-  assert.equal(deriveThreadStrategy(new Set(['THREAD=REFERENCES'])), 'imap-thread');
-  assert.equal(deriveThreadStrategy(new Set(['THREAD=ORDEREDSUBJECT'])), 'imap-thread');
+test('deriveThreadStrategy → thread-id when a thread id is available (Gmail or OBJECTID), else reconstruct', () => {
+  assert.equal(deriveThreadStrategy(new Set(['X-GM-EXT-1'])), 'thread-id');
+  assert.equal(deriveThreadStrategy(new Set(['OBJECTID'])), 'thread-id');
+  assert.equal(deriveThreadStrategy(new Set(['THREAD=REFERENCES'])), 'reconstruct'); // no imapflow THREAD cmd
   assert.equal(deriveThreadStrategy(new Set(['MOVE', 'IDLE'])), 'reconstruct');
 });
 
@@ -38,14 +38,14 @@ test('deriveProfile combines address + provider + strategy', () => {
     capabilities: new Map([['X-GM-EXT-1', true]]),
     address: 'me@gmail.com',
   });
-  assert.deepEqual(p, { address: 'me@gmail.com', provider: 'gmail', threadStrategy: 'gmail-thrid' });
+  assert.deepEqual(p, { address: 'me@gmail.com', provider: 'gmail', threadStrategy: 'thread-id' });
 });
 
-test('deriveProfile on a plain THREAD-capable server', () => {
+test('deriveProfile on a plain server without a thread id → reconstruct', () => {
   const p = deriveProfile({
     host: 'mail.acme.com',
-    capabilities: ['IMAP4rev1', 'THREAD=REFERENCES', 'MOVE'],
+    capabilities: ['IMAP4rev1', 'MOVE'],
     address: 'ops@acme.com',
   });
-  assert.deepEqual(p, { address: 'ops@acme.com', provider: 'generic', threadStrategy: 'imap-thread' });
+  assert.deepEqual(p, { address: 'ops@acme.com', provider: 'generic', threadStrategy: 'reconstruct' });
 });

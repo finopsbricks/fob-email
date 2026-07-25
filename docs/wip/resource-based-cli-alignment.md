@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: IN PROGRESS (~65%) — Phases 1–4 done (engine, `emails`/`folders` CRUD, D6 capabilities probe); Phase 5 (`threads`) next
+## Status: IN PROGRESS (~78%) — Phases 1–5 done (engine, `emails`/`folders` CRUD, D6 probe, `threads`); Phase 6 (`drafts`) next
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -232,6 +232,10 @@ Each is locked and the resulting work is scheduled in the phase named in **Lands
   "capability-detecting cascade at runtime" idea for threads. **Lands in:** Phase 4 (the probe +
   `config accounts add`/`refresh`/`list` integration); consumed by Phase 5 (`threads`) and Phase 6
   (`drafts`, via the cached Drafts folder).
+  *Strategy taxonomy (settled in Phase 5, grounded in imapflow 1.5.0):* `thread-id` (server exposes a
+  thread id via Gmail `X-GM-EXT-1` **or** RFC 8474 `OBJECTID` — imapflow unifies both behind its
+  `threadId` fetch/search field) vs `reconstruct` (walk `References`/`In-Reply-To`; imapflow has no
+  RFC 5256 `THREAD` command, so there is no server-side reconstruct path).
 
 ## Open Questions
 
@@ -309,8 +313,8 @@ threads-only fields** — `address` + `provider` + `threadStrategy`. Special-use
 later, in Phase 6 (drafts).
 - [x] `src/engine/capabilities.js` — pure deriv: `toCapabilitySet` (Map/array/Set → uppercased Set),
       `deriveProvider` (host + `X-GM-EXT-1` → `gmail|outlook|fastmail|yahoo|generic`),
-      `deriveThreadStrategy` (`X-GM-EXT-1`→`gmail-thrid`, `THREAD=*`→`imap-thread`, else `reconstruct`),
-      `deriveProfile`. Engine `probe()` reads `client.capabilities` (free after connect) — deterministic,
+      `deriveThreadStrategy` (`X-GM-EXT-1`/`OBJECTID`→`thread-id`, else `reconstruct` — taxonomy
+      settled in Phase 5), `deriveProfile`. Engine `probe()` reads `client.capabilities` — deterministic,
       no fail-retry. `getProfile(account)` one-shot in `src/index.js`.
 - [x] `src/config.js`: `setAccountProfile(name, { address, provider, threadStrategy })` (and
       `setAccountIdentity` now delegates to it); `AccountSchema` declares the optional metadata so
@@ -323,16 +327,21 @@ later, in Phase 6 (drafts).
       **52/52** (9 new: normalization, provider/strategy derivation, profile combine, config round-trip
       + merge, `setAccountIdentity` delegation).
 
-### Phase 5: `threads` resource ❌
+### Phase 5: `threads` resource ✅
 Conversations are the object an FDE uses to trace a vendor exchange; **strategy comes from the profile
 (D6), not a runtime cascade.**
-- [ ] Engine: `resolveThread` dispatches on the account's cached `thread_strategy` —
-      `gmail-thrid` (`X-GM-THRID`), `imap-thread` (RFC 5256 `THREAD`), or `reconstruct`
-      (`Message-Id`/`References`/`In-Reply-To`). One deterministic branch; if unset, probe once (D6).
-- [ ] `src/types/domain/Thread.types.js` + `src/resources/threads.js` (`buildThreads(ctx)`:
-      `show`, `list`) wired into `fobEmail`.
-- [ ] `src/cli/threads/show.js` (full conversation, oldest→newest, `formatSection` per message) +
-      `src/cli/threads/list.js`.
+- [x] Engine: `strategyFor()` reads the account's cached `threadStrategy` (or probes once if unset).
+      `resolveThread` dispatches — `thread-id` (fetch the message's `threadId`, then `search({threadId})`)
+      or `reconstruct` (fetch a window + References/In-Reply-To headers → pure grouping). `listThreads`
+      groups a window by thread id or reference links. One deterministic branch; no cascade.
+- [x] `src/domain/threads.js` — **pure, tested** `parseMessageIds` / `groupThreads` (union-find over
+      message-id links) / `threadOf`. The reconstruct core, isolated from I/O.
+- [x] `src/types/domain/Thread.types.js` (`ThreadSummary`, `Thread`) + `src/resources/threads.js`
+      (`buildThreads(ctx)`: `list`, `show`) wired into `fobEmail`; `ctx` gains `listThreads`/`resolveThread`.
+- [x] `src/cli/threads/{list,show,index}.js` (summary table / conversation table + `--json`); root tree
+      gains `threads <action>`.
+- [x] **Verified:** `npm run typecheck` → 0 errors; tests **59/59** (7 new: parse/group/threadOf,
+      resource delegation, list+show output, `--json`); `threads` help walks.
 
 ### Phase 6: `drafts` resource (compose lifecycle) ❌
 - [ ] Engine: `APPEND` to the profile's cached **Drafts folder** (D6) + draft update/delete; `send`

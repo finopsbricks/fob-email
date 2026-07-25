@@ -37,6 +37,12 @@ export function createTransport(account) {
     /** @returns {Promise<Array<object>>} */
     listFolders: async () => (await session()).listFolders(),
 
+    // -- threads (strategy read from the profile — D6) ------------------------
+    /** @param {object} [opts] */
+    listThreads: async (opts) => (await session()).listThreads(opts),
+    /** @param {object} opts */
+    resolveThread: async (opts) => (await session()).resolveThread(opts),
+
     // -- message mutations (all id-targeting; carry folder + uidValidity) -----
     /** @param {object} opts */
     setFlag: async (opts) => (await session()).setFlag(opts),
