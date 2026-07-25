@@ -1,12 +1,12 @@
-import { Session } from './engine/imap.js';
+import { connectSession } from './engine/imap.js';
 
-export { Session };
+export { connectSession };
 export { filterEmails } from './domain/filter.js';
 export { resolveAccount } from './config.js';
 
-/** Connect and return a Session. Caller closes. Primary API for batching. */
+/** Connect and return a live session. Caller closes. Primary API for batching. */
 export async function connect(account) {
-  return Session.connect(account);
+  return connectSession(account);
 }
 
 /** One-shot list: connect → list → close. Returns the envelope array. */

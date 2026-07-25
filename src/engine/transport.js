@@ -1,28 +1,28 @@
-import { Session } from './imap.js';
-import { Mailer } from './smtp.js';
+import { connectSession } from './imap.js';
+import { connectMailer } from './smtp.js';
 
 /**
  * The transport seam — `createTransport(account)` is the protocol analog of an
  * HTTP client's `createTransport`. It binds one account's credentials into a
  * flat `ctx` of primitive protocol ops that the `src/resources/` layer composes
- * into user-facing verbs. Resources never import `Session`/`Mailer` directly and
- * hold no protocol knowledge of their own — this is the only seam they bind to.
+ * into user-facing verbs. Resources never import the engine factories directly
+ * and hold no protocol knowledge of their own — this is the only seam they bind to.
  *
- * Connections are lazy and reused: the IMAP `Session` opens on the first mailbox
- * op, the SMTP `Mailer` on the first `send`, and `close()` tears both down. A
+ * Connections are lazy and reused: the IMAP session opens on the first mailbox
+ * op, the SMTP mailer on the first `send`, and `close()` tears both down. A
  * client built from this ctx (see src/index.js `fobEmail`) is therefore cheap to
  * construct and must be closed by the caller (or via the one-shot helpers).
  *
  * @param {string|object} [account] account name, or a raw config object.
  */
 export function createTransport(account) {
-  /** @type {Promise<Session>|null} */
+  /** @type {ReturnType<typeof connectSession>|null} */
   let imap = null;
-  /** @type {Promise<Mailer>|null} */
+  /** @type {ReturnType<typeof connectMailer>|null} */
   let smtp = null;
 
-  const session = () => (imap ??= Session.connect(account));
-  const mailer = () => (smtp ??= Mailer.connect(account));
+  const session = () => (imap ??= connectSession(account));
+  const mailer = () => (smtp ??= connectMailer(account));
 
   return {
     // -- reads ----------------------------------------------------------------

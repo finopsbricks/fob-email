@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: IN PROGRESS (~15%) — Phase 1 done (transport seam + presentation helpers + type tooling); Phase 2 (`emails` slice) next
+## Status: IN PROGRESS (~18%) — Phase 1 + D5 engine-to-functional refactor done; Phase 2 (`emails` slice) next
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -153,7 +153,7 @@ Actions are always explicit — `fob-email emails` prints its actions and never 
 
 | Layer | Location | Responsibility |
 |---|---|---|
-| **Engine (transport)** | `src/engine/imap.js` (`Session`), `src/engine/smtp.js` (new) | Protocol I/O only — connect, fetch, setFlags, move, expunge, append, send, thread. The `ctx` seam. |
+| **Engine (transport)** | `src/engine/imap.js` (`connectSession`), `src/engine/smtp.js` (`connectMailer`) | Protocol I/O only — connect, fetch, setFlags, move, expunge, append, send, thread. Functional factories + closures (D5). The `ctx` seam. |
 | **Resources** | `src/resources/emails.js`, `threads.js`, `drafts.js`, `folders.js` | Object operations defined once. `buildEmails(ctx)` / `buildThreads(ctx)` / … return flat, typed namespaces. The only place besides the engines that composes protocol ops. |
 | **Client factory** | `src/index.js` | `fobEmail(account)` → `{ emails, threads, drafts, folders, close() }` + retained one-shot helpers. What workers import; what the CLI calls. |
 | **CLI (presentation)** | `src/cli/emails/*`, `threads/*`, `drafts/*`, `folders/*`, `config/*` | Parse argv → clean domain object, call `mbox.<resource>.<action>()`, format via `format.js`. No protocol knowledge. |
@@ -203,6 +203,19 @@ Each is locked and the resulting work is scheduled in the phase named in **Lands
   throws a clear "message id is stale — re-list the folder" error on mismatch rather than acting on the
   wrong message. `move` names the destination with `--to`. **Lands in:** Phase 1 (engine
   `UIDVALIDITY` assertion in the `ctx` seam) + enforced by every id-targeting handler.
+- **D5 — the engine is functional (factories + closures), not OOP classes.** Engineering-standards
+  *[Functional Programming](/Users/alex/ec2code/alex/engineering-standards/principles/functional-programming.md)*
+  says "prefer functional patterns over OOP for application code"; the reference impl `fob-stm/src`
+  holds exactly **one** class (`ApiError extends Error`, the sanctioned custom-error case) and writes
+  even its stateful transport as `createTransport()` → an object of closures. The Phase-1
+  `engine/transport.js` is already this shape. So `engine/imap.js`'s `Session` class and
+  `engine/smtp.js`'s `Mailer` class are converted to **`connectSession(account)` / `connectMailer(account)`
+  factories** returning objects of functions — connection state lives in closure variables (truly
+  private, no `this`, no `#`). Vendor classes we wrap (`new ImapFlow(...)`,
+  `nodemailer.createTransport(...)`) stay — that's the "third-party requires classes" carve-out — as
+  would any `class X extends Error`. The pure transforms (`toEnvelope`/`toMessage`/`hasAttachment`) are
+  already module functions and are untouched. **Lands in:** a standalone refactor **before Phase 2**
+  (mechanical, no behavior change, tests stay green).
 
 ## Open Questions
 
@@ -309,7 +322,7 @@ Conversations are the object an FDE uses to trace a vendor exchange; strategy is
 
 **Being refactored:**
 - `src/index.js` — `fobEmail(account)` factory (replaces bare one-shot exports as the primary API)
-- `src/engine/imap.js` — `Session` becomes the IMAP half of the `ctx` seam; add
+- `src/engine/imap.js` — the IMAP half of the `ctx` seam; `connectSession(account)` factory (D5) with
   `search`/`setFlag`/`move`/`expunge`/`append`/`resolveThread`/`create|rename|deleteFolder` ops + the
   D4 `UIDVALIDITY` assertion
 - `src/cli/index.js` — resource/action command tree; drop flat commands + JSON-default framing
