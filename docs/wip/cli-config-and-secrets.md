@@ -138,4 +138,4 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
 - `engineering-standards/cli/command-grammar.md` — the `config profiles <verb>` surface
 - `engineering-standards/cli/auth-patterns.md` — Pattern C (protocol/connection credentials)
 - `finopsbricks/cli/fob-stm/docs/wip/cli-config-and-secrets.md` — the reference decision log
-- `engineering-standards/docs/wip/cli-standards-and-wrappers.md` — parent effort (Phase 6 = retrofit lib-email)
+- `finopsbricks/cli/fob-stm/docs/wip/cli-standards-and-wrappers.md` — parent effort (Phase 6 = retrofit lib-email)
