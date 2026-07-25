@@ -1,5 +1,5 @@
 {
-  "name": "@fob/lib-email",
+  "name": "@fob/email",
   "version": "0.0.1",
   "description": "Generic email primitives (IMAP/SMTP) usable as a library import or the fob-email CLI.",
   "type": "module",

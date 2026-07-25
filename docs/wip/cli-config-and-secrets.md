@@ -2,7 +2,7 @@
 
 ## Status: NOT STARTED
 
-Bring the email wrapper (`@fob/lib-email`, binary `fob-email`) in line with the CLI **config /
+Bring the email wrapper (`@fob/email`, binary `fob-email`) in line with the CLI **config /
 secrets / command-surface** standard decided for `fob-stm` this session. Same decisions, adapted to
 email's protocol (IMAP/SMTP, Pattern C) and vocabulary ("account"). The command-surface piece
 depends on the separate yargs CLI retrofit (parent tracker Phase 6).
@@ -29,7 +29,7 @@ Current state (audit 2026-07-25):
 
 Reference files: `src/config.js` (`resolveAccount`), `bin/cli.js`, `src/index.js`
 (`connect`/`listEmails`/`readEmail`, `Session`), `src/engine/imap.js`, `package.json`
-(`@fob/lib-email`, bin `fob-email`).
+(`@fob/email`, bin `fob-email`).
 
 ## Proposed Solution — apply the session's decisions to email
 
@@ -55,8 +55,9 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
 
 ## Open Questions
 
-- [ ] **Package rename?** `@fob/lib-email` → `@fob/email` (align scope with `@fob/stm`; binary is
-      already `fob-email`). Confirm before touching `package.json` / worker imports.
+- [x] **Package rename?** `@fob/lib-email` → `@fob/email` — **done** (2026-07-25). Aligned scope with
+      `@fob/stm`; binary stays `fob-email`. No worker imports the package yet, so nothing to migrate.
+      Repo also moved `lib/lib-email/` → `cli/fob-email/` alongside the other `cli/*` wrappers.
 - [ ] **Domain alias:** `accounts` (matches current vocabulary) vs a neutral `profiles`-only surface?
       Leaning `accounts` alias.
 - [ ] **Config schema key:** store under `accounts:` + `current` (domain-faithful, like fob-stm's
@@ -81,15 +82,17 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
 - [ ] Resolve the authenticated mailbox address on `profiles add` + `profiles refresh <name>`/`--all`
       from the IMAP session; cache as non-secret metadata; never block add on failure.
 
-### Phase 5: Naming alignment ❌
-- [ ] If confirmed, rename `@fob/lib-email` → `@fob/email`; update worker imports; keep bin `fob-email`.
+### Phase 5: Naming alignment ✅ (2026-07-25)
+- [x] Renamed `@fob/lib-email` → `@fob/email` (`package.json`, `package-lock.json`, `README.md`); kept
+      bin `fob-email`. No worker imports to update.
+- [x] Moved repo `lib/lib-email/` → `cli/fob-email/` to sit with the `cli/*` wrapper family.
 
 ## Related Files
 
 - `src/config.js` — `resolveAccount`; the storage seam to repoint at `~/.fob/fob-email/`
 - `bin/cli.js` — hand-rolled parser to replace with yargs (Phase 2)
 - `src/index.js` / `src/engine/imap.js` — client core + IMAP session (source of the cached address)
-- `package.json` — `@fob/lib-email` → `@fob/email` (Phase 5)
+- `package.json` — `@fob/email` (renamed from `@fob/lib-email`, Phase 5 ✅)
 
 ## Related Notes
 

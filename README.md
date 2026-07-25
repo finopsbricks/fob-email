@@ -1,8 +1,8 @@
-# @fob/lib-email
+# @fob/email
 
 Generic email primitives over IMAP/SMTP (`imapflow` + `nodemailer`), usable two ways:
 
-- **import** in a worker — `import { connect, listEmails, filterEmails } from '@fob/lib-email'`
+- **import** in a worker — `import { connect, listEmails, filterEmails } from '@fob/email'`
 - **CLI** for hands-on use / skills — `fob-email list --unseen`
 
 The library is **generic** (list / filter / read / send / reply / move / flag). Domain
@@ -45,7 +45,7 @@ Precedence — named account: `FOB_EMAIL_ACCOUNTS` env → file. Default (no nam
 ## Library
 
 ```js
-import { connect, listEmails, filterEmails } from '@fob/lib-email';
+import { connect, listEmails, filterEmails } from '@fob/email';
 
 // batched: one login, many ops
 const mb = await connect('gmail');
