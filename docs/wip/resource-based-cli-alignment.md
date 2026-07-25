@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: IN PROGRESS (~55%) — Phases 1–3 done (engine, `emails` full CRUD + send, `folders` CRUD, filter moved); Phase 4 (`threads`) next
+## Status: IN PROGRESS (~65%) — Phases 1–4 done (engine, `emails`/`folders` CRUD, D6 capabilities probe); Phase 5 (`threads`) next
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -217,10 +217,26 @@ Each is locked and the resulting work is scheduled in the phase named in **Lands
   already module functions and are untouched. **Lands in:** a standalone refactor **before Phase 2**
   (mechanical, no behavior change, tests stay green).
 
+- **D6 — profiles are self-describing: a capabilities probe runs at config time; runtime dispatches
+  from the cache, never a per-call cascade.** Server behaviour (does it support Gmail thread ids? RFC
+  5256 `THREAD`? where is the Drafts folder?) is a **property of the account**, discovered once and
+  cached as non-secret metadata — the config-and-secrets standard's "profiles cache their
+  server-resolved identity; resolve once, `refresh` fixes drift." A `probe(session)` inspects the
+  connection's `CAPABILITY` set (free after connect — no extra round-trips) + a host heuristic, and
+  derives a deterministic profile (special-use folders join the probe in Phase 6, when drafts need them). The existing `refreshIdentity`
+  (called by `config accounts add` and `refresh`) is broadened from "cache `address`" to "cache the
+  whole profile." **Runtime reads the cached value and calls the matching implementation directly** —
+  e.g. `thread_strategy: 'gmail-thrid'` → the Gmail path, no try-fail-try. If a profile was never
+  probed (or is a raw config object), the engine runs the *same deterministic probe once* and uses the
+  result — a single detection, still never a sequential retry cascade. This replaces the earlier
+  "capability-detecting cascade at runtime" idea for threads. **Lands in:** Phase 4 (the probe +
+  `config accounts add`/`refresh`/`list` integration); consumed by Phase 5 (`threads`) and Phase 6
+  (`drafts`, via the cached Drafts folder).
+
 ## Open Questions
 
-*(none currently — all design forks resolved above; reopen here if new ones surface during Phase 2's
-review gate.)*
+*(none currently — all design forks resolved above; reopen here if new ones surface during a review
+gate.)*
 
 ## Implementation Phases
 
@@ -287,29 +303,51 @@ Each verb follows the Phase-2 recipe (resource method + `@ts-check` handler + hu
       search criteria, mark/move/delete guards, message-builder, send, folders CRUD); `emails`/`folders`
       help trees walk; no-creds → clean exit 1; delete/rename guards exit 1.
 
-### Phase 4: `threads` resource ❌
-Conversations are the object an FDE uses to trace a vendor exchange; strategy is server-dependent.
-- [ ] Engine: add a thread-resolution op to `Session` — prefer Gmail `X-GM-THRID`, fall back to RFC
-      5256 `THREAD`, else client-side reconstruction via `Message-Id`/`References`/`In-Reply-To`.
+### Phase 4: Account capabilities probe — self-describing profiles (D6) ✅
+The single place that figures out how to talk to a given server; runtime reads the cache. **Scope:
+threads-only fields** — `address` + `provider` + `threadStrategy`. Special-use folders/flags probed
+later, in Phase 6 (drafts).
+- [x] `src/engine/capabilities.js` — pure deriv: `toCapabilitySet` (Map/array/Set → uppercased Set),
+      `deriveProvider` (host + `X-GM-EXT-1` → `gmail|outlook|fastmail|yahoo|generic`),
+      `deriveThreadStrategy` (`X-GM-EXT-1`→`gmail-thrid`, `THREAD=*`→`imap-thread`, else `reconstruct`),
+      `deriveProfile`. Engine `probe()` reads `client.capabilities` (free after connect) — deterministic,
+      no fail-retry. `getProfile(account)` one-shot in `src/index.js`.
+- [x] `src/config.js`: `setAccountProfile(name, { address, provider, threadStrategy })` (and
+      `setAccountIdentity` now delegates to it); `AccountSchema` declares the optional metadata so
+      `resolveAccount` carries it to the engine at runtime; `listAccounts` surfaces
+      `provider`/`threadStrategy`.
+- [x] `src/cli/config/_identity.js`: `refreshIdentity` → `refreshProfile` (address **+** probe); `add`
+      and `refresh` call it and report `provider`/`threadStrategy`; `config accounts list` gains a
+      PROVIDER column (`provider/strategy`). `refresh` re-syncs (fixes drift).
+- [x] `src/types/domain/Capabilities.types.js`. **Verified:** `npm run typecheck` → 0 errors; tests
+      **52/52** (9 new: normalization, provider/strategy derivation, profile combine, config round-trip
+      + merge, `setAccountIdentity` delegation).
+
+### Phase 5: `threads` resource ❌
+Conversations are the object an FDE uses to trace a vendor exchange; **strategy comes from the profile
+(D6), not a runtime cascade.**
+- [ ] Engine: `resolveThread` dispatches on the account's cached `thread_strategy` —
+      `gmail-thrid` (`X-GM-THRID`), `imap-thread` (RFC 5256 `THREAD`), or `reconstruct`
+      (`Message-Id`/`References`/`In-Reply-To`). One deterministic branch; if unset, probe once (D6).
 - [ ] `src/types/domain/Thread.types.js` + `src/resources/threads.js` (`buildThreads(ctx)`:
       `show`, `list`) wired into `fobEmail`.
-- [ ] `src/cli/threads/show.js` (full conversation, oldest→newest, human-formatted with
-      `formatSection` per message) + `src/cli/threads/list.js`.
+- [ ] `src/cli/threads/show.js` (full conversation, oldest→newest, `formatSection` per message) +
+      `src/cli/threads/list.js`.
 
-### Phase 5: `drafts` resource (compose lifecycle) ❌
-- [ ] Engine: `APPEND` to the Drafts folder + draft update/delete on `Session`; `send` bridges to
-      `src/engine/smtp.js`.
+### Phase 6: `drafts` resource (compose lifecycle) ❌
+- [ ] Engine: `APPEND` to the profile's cached **Drafts folder** (D6) + draft update/delete; `send`
+      bridges to `src/engine/smtp.js`.
 - [ ] `src/types/domain/Draft.types.js` + `src/resources/drafts.js` (`buildDrafts(ctx)`:
       `list`, `create`, `edit`, `delete`, `send`) wired into `fobEmail`.
 - [ ] `src/cli/drafts/*` handlers. **D3 —** `create`/`edit`/`send` reuse the Phase-3 shared builder
       (`src/cli/emails/_message.js`), so one-shot send and draft-send share body/attachment assembly.
 
-### Phase 6: Config conformance ❌
+### Phase 7: Config conformance ❌
 - [ ] Reshape `src/cli/config/` to the blanket `profiles` object noun with `['accounts','profiles']`
       alias; `accounts list` prints a table with the current-`*` marker and a `config: <path>` footer;
-      add `--json`. Confirm identity (`address`) caching + `refresh` conform.
+      add `--json`. Confirm identity/capabilities caching + `refresh` conform.
 
-### Phase 7: Retire the old shape + publish the breaking change ❌
+### Phase 8: Retire the old shape + publish the breaking change ❌
 - [ ] Remove the top-level `list`/`read`/`filter` commands (now under `emails`); update
       `src/cli/index.js` usage/header (drop "JSON on stdout" framing).
 - [ ] Rewrite `src/index.js` library surface: `fobEmail` + retained one-shots; document the namespace API.
@@ -321,7 +359,7 @@ Conversations are the object an FDE uses to trace a vendor exchange; strategy is
 **Being created:**
 - `src/resources/emails.js`, `threads.js`, `drafts.js`, `folders.js` — the shared object-operation layer
 - `src/engine/smtp.js` — SMTP transport (`nodemailer`)
-- `src/types/general/*`, `src/types/domain/*` (`Email`, `Attachment`, `Thread`, `Draft`, `Folder`) — `@ts-check` typedefs
+- `src/types/general/*`, `src/types/domain/*` (`Email`, `Attachment`, `Folder`, `Capabilities`, `Thread`, `Draft`) — `@ts-check` typedefs
 - `src/cli/emails/*` (`list`, `search`, `show`, `download`, `mark`, `move`, `delete`, `send`, `filter`,
   `_message.js` shared builder), `src/cli/threads/*` (`show`, `list`),
   `src/cli/drafts/*` (`list`, `create`, `edit`, `delete`, `send`),

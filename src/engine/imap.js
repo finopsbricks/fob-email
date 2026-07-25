@@ -1,6 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { resolveAccount } from '../config.js';
+import { deriveProfile } from './capabilities.js';
 
 /**
  * A live IMAP session — the only place that talks IMAP.
@@ -60,6 +61,14 @@ export async function connectSession(account) {
      * for the providers we target, and reaching here means auth passed.
      */
     identity: () => ({ address }),
+
+    /**
+     * Probe the server's self-describing profile (D6): provider + thread
+     * strategy, derived from the CAPABILITY set (populated on connect — no extra
+     * round-trips) and the host. Deterministic; `config accounts add`/`refresh`
+     * cache the result so runtime never re-probes.
+     */
+    probe: () => deriveProfile({ host: cfg.imap.host, capabilities: client.capabilities, address }),
 
     /**
      * List envelopes (newest first). Returns the folder's current `uidValidity`

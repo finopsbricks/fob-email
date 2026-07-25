@@ -71,3 +71,17 @@ export async function getIdentity(account) {
     await s.close();
   }
 }
+
+/**
+ * Probe an account's self-describing profile (D6): connect, read the server
+ * capabilities, close. `{ address, provider, threadStrategy }`. Cached by the CLI
+ * on `config accounts add`/`refresh`; exposed here so workers can probe too.
+ */
+export async function getProfile(account) {
+  const s = await connect(account);
+  try {
+    return s.probe();
+  } finally {
+    await s.close();
+  }
+}

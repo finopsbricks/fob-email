@@ -17,18 +17,20 @@ export function listConfigHandler(argv) {
     return;
   }
 
-  // The address column appears only once any account has a cached identity (decision G, Phase 4).
-  const hasAddress = accounts.some((a) => a.address);
+  // The address/provider columns appear only once any account has been probed
+  // (decision G + D6): connecting to fill them must never be required to list.
+  const hasProfile = accounts.some((a) => a.address || a.provider);
 
-  const headers = hasAddress
-    ? ['', 'NAME', 'ADDRESS', 'IMAP', 'SMTP']
+  const headers = hasProfile
+    ? ['', 'NAME', 'ADDRESS', 'PROVIDER', 'IMAP', 'SMTP']
     : ['', 'NAME', 'IMAP', 'SMTP'];
 
   const rows = accounts.map((a) => {
     const mark = a.current ? '*' : ' ';
     const imap = a.imap ? `${a.imap.host}:${a.imap.port}` : '';
     const smtp = a.smtp ? `${a.smtp.host}:${a.smtp.port}` : '';
-    return hasAddress ? [mark, a.name, a.address ?? '', imap, smtp] : [mark, a.name, imap, smtp];
+    const provider = a.provider ? `${a.provider}/${a.threadStrategy ?? '?'}` : '';
+    return hasProfile ? [mark, a.name, a.address ?? '', provider, imap, smtp] : [mark, a.name, imap, smtp];
   });
 
   console.log(formatTable(headers, rows));

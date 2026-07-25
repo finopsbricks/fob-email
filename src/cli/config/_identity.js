@@ -1,18 +1,18 @@
-import { getIdentity } from '../../index.js';
-import { setAccountIdentity } from '../../config.js';
+import { getProfile } from '../../index.js';
+import { setAccountProfile } from '../../config.js';
 
 /**
- * Best-effort: connect, resolve the account's mailbox address, and cache it as
- * non-secret metadata. Never throws — a failed/blocked connection must not stop
- * the caller (decision G: adding creds must not require a network round-trip).
- * Returns the identity on success, else null.
+ * Best-effort (D6): connect, probe the account's self-describing profile
+ * (address + provider + thread strategy), and cache it as non-secret metadata.
+ * Never throws — a failed/blocked connection must not stop the caller (adding
+ * creds must not require a network round-trip). Returns the profile, else null.
  */
-export async function refreshIdentity(name) {
+export async function refreshProfile(name) {
   try {
-    const id = await getIdentity(name);
-    if (id?.address) {
-      setAccountIdentity(name, { address: id.address });
-      return id;
+    const profile = await getProfile(name);
+    if (profile?.address) {
+      setAccountProfile(name, profile);
+      return profile;
     }
   } catch (err) {
     console.error(`(could not verify '${name}': ${err.message})`);

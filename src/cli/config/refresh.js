@@ -1,10 +1,10 @@
 import { accountNames } from '../../config.js';
-import { refreshIdentity } from './_identity.js';
+import { refreshProfile } from './_identity.js';
 
 /**
- * `fob-email config accounts refresh [name] --all` — re-resolve the cached
- * mailbox address(es) from the server by connecting. The server is the source
- * of truth; this fixes drift.
+ * `fob-email config accounts refresh [name] --all` — re-probe the cached profile
+ * (address + provider + thread strategy) from the server by connecting (D6). The
+ * server is the source of truth; this fixes drift.
  */
 export async function refreshConfigHandler(argv) {
   let names;
@@ -18,7 +18,9 @@ export async function refreshConfigHandler(argv) {
   }
 
   for (const name of names) {
-    const id = await refreshIdentity(name);
-    console.log(id?.address ? `${name}: ${id.address}` : `${name}: (unresolved)`);
+    const p = await refreshProfile(name);
+    console.log(
+      p?.address ? `${name}: ${p.address} (${p.provider}, threads: ${p.threadStrategy})` : `${name}: (unresolved)`,
+    );
   }
 }

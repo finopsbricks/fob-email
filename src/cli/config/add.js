@@ -1,5 +1,5 @@
 import { addAccount } from '../../config.js';
-import { refreshIdentity } from './_identity.js';
+import { refreshProfile } from './_identity.js';
 
 /**
  * `fob-email config accounts add <name>` — store IMAP (and optional SMTP)
@@ -34,7 +34,11 @@ export async function addConfigHandler(argv) {
   console.log(`Saved account '${argv.name}' to the fob-email config (mode 0600).`);
 
   if (argv.verify !== false) {
-    const id = await refreshIdentity(argv.name);
-    if (id?.address) console.log(`Verified — authenticates as ${id.address}.`);
+    const profile = await refreshProfile(argv.name);
+    if (profile?.address) {
+      console.log(
+        `Verified — authenticates as ${profile.address} (${profile.provider}, threads: ${profile.threadStrategy}).`,
+      );
+    }
   }
 }

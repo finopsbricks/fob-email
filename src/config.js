@@ -50,7 +50,16 @@ const SmtpSchema = z
   })
   .optional();
 
-const AccountSchema = z.object({ imap: ImapSchema, smtp: SmtpSchema });
+const AccountSchema = z.object({
+  imap: ImapSchema,
+  smtp: SmtpSchema,
+  // Non-secret, server-probed metadata (decision G + D6). Optional so raw config
+  // objects and never-probed profiles still validate; declared so `.parse()`
+  // doesn't strip them and the engine can read the cached strategy at runtime.
+  address: z.string().optional(),
+  provider: z.string().optional(),
+  threadStrategy: z.string().optional(),
+});
 
 // -- storage layer -----------------------------------------------------------
 
@@ -106,6 +115,8 @@ export function listAccounts() {
     name,
     current: name === cfg.current,
     address: a.address ?? null,
+    provider: a.provider ?? null,
+    threadStrategy: a.threadStrategy ?? null,
     imap: a.imap ? { host: a.imap.host, port: a.imap.port, user: a.imap.user, tls: a.imap.tls } : null,
     smtp: a.smtp ? { host: a.smtp.host, port: a.smtp.port, user: a.smtp.user, secure: a.smtp.secure } : null,
   }));
@@ -117,9 +128,23 @@ export function listAccounts() {
  * non-secret metadata (decision G). Leaves credentials untouched.
  */
 export function setAccountIdentity(accountName, { address } = {}) {
+  return setAccountProfile(accountName, { address });
+}
+
+/**
+ * Merge the server-probed, self-describing profile (D6) into a stored account as
+ * non-secret metadata: `address` (decision G) + `provider` + `threadStrategy`.
+ * Only the fields provided are updated; credentials are left untouched. This is
+ * the seam the capabilities probe (config accounts add/refresh) writes through.
+ */
+export function setAccountProfile(accountName, { address, provider, threadStrategy } = {}) {
   const cfg = loadConfig();
   if (!cfg.accounts[accountName]) throw new Error(`No account named '${accountName}'.`);
-  cfg.accounts[accountName] = { ...cfg.accounts[accountName], address: address ?? null };
+  const next = { ...cfg.accounts[accountName] };
+  if (address !== undefined) next.address = address ?? null;
+  if (provider !== undefined) next.provider = provider ?? null;
+  if (threadStrategy !== undefined) next.threadStrategy = threadStrategy ?? null;
+  cfg.accounts[accountName] = next;
   return saveConfig(cfg);
 }
 
