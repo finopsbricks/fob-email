@@ -127,9 +127,10 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
 
 ## Related Files
 
-- `src/config.js` — `resolveAccount`; the storage seam to repoint at `~/.fob/fob-email/`
-- `bin/cli.js` — hand-rolled parser to replace with yargs (Phase 2)
-- `src/index.js` / `src/engine/imap.js` — client core + IMAP session (source of the cached address)
+- `src/config.js` — `resolveAccount` + storage layer, now at `~/.fob/fob-email/` (Phase 1 ✅)
+- `bin/cli.js` → `src/cli/**` — yargs command tree replacing the hand-rolled parser (Phase 2 ✅)
+- `src/index.js` / `src/engine/imap.js` — client core + IMAP session; `getIdentity()`/`identity()`
+  are the source of the cached address (Phase 4 ✅)
 - `package.json` — `@fob/email` (renamed from `@fob/lib-email`, Phase 5 ✅)
 
 ## Related Notes
