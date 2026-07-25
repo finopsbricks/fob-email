@@ -81,8 +81,14 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
 > "Precedence" decision) is a worker-facing contract change, not a Phase 1 storage bullet — deferred to
 > the precedence/command-surface work. `IMAP_*` + `FOB_EMAIL_ACCOUNTS` still resolve as before.
 
-### Phase 2: yargs CLI retrofit ❌ (parent tracker Phase 6 — prerequisite for Phase 3)
-- [ ] Replace `bin/cli.js` `parse()`/switch with the yargs skeleton + grammar; keep client exports.
+### Phase 2: yargs CLI retrofit ✅ (2026-07-25, parent tracker Phase 6)
+- [x] Replaced `bin/cli.js` hand-rolled `parse()`/switch with the fob-stm yargs skeleton:
+      `bin/cli.js` → `src/cli/index.js` `run()`, per-command modules `src/cli/{list,read,filter}.js`,
+      shared `src/cli/_helpers.js` (`safe`, `emitJson`, `readStdin`). Added `yargs` dep.
+- [x] Behavior preserved: same `list`/`read <id>`/`filter` surface + flags, JSON on stdout. Now with
+      `--help`/`--version`, `.strict()` unknown-arg rejection, and `FOB_DEBUG=1` stack traces.
+- [x] Client exports (`src/index.js`) untouched — the retrofit is CLI-only. `config accounts` tree
+      slots into `src/cli/index.js` next (Phase 3).
 
 ### Phase 3: `config profiles`/`accounts` command surface ❌ (after Phase 2)
 - [ ] `fob-email config profiles <list|add|use|remove>` (+ `accounts` alias, `rm` alias).
