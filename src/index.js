@@ -9,11 +9,11 @@ export async function connect(account) {
   return Session.connect(account);
 }
 
-/** One-shot list: connect → list → close. */
+/** One-shot list: connect → list → close. Returns the envelope array. */
 export async function listEmails({ account, ...opts } = {}) {
   const s = await connect(account);
   try {
-    return await s.list(opts);
+    return (await s.list(opts)).data;
   } finally {
     await s.close();
   }
@@ -23,7 +23,7 @@ export async function listEmails({ account, ...opts } = {}) {
 export async function readEmail({ account, ...opts } = {}) {
   const s = await connect(account);
   try {
-    return await s.read(opts);
+    return await s.fetchFull(opts);
   } finally {
     await s.close();
   }

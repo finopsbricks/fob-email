@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: NOT STARTED
+## Status: IN PROGRESS (~15%) — Phase 1 done (transport seam + presentation helpers + type tooling); Phase 2 (`emails` slice) next
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -211,21 +211,28 @@ review gate.)*
 
 ## Implementation Phases
 
-### Phase 1: Transport seam + presentation helpers ❌
-- [ ] Add `src/engine/smtp.js` — a `nodemailer` transport with the same Pattern-C credential seam
-      (validate on connect via `zod`, resolve creds env → config → per-call override).
-- [ ] Define the session **`ctx`** — a lazily-connected transport wrapping `Session` (IMAP) + the SMTP
-      transport, exposing primitive ops (`list`, `search`, `fetchFull`, `fetchAttachments`, `setFlag`,
-      `move`, `expunge`, `append`, `resolveThread`, `createFolder`, `renameFolder`, `deleteFolder`,
-      `send`) plus `close()`. This is the `createTransport` analog for a protocol tool.
-- [ ] **D4 — `UIDVALIDITY` assertion in the `ctx` seam.** Every id-targeting op opens the named folder,
-      compares its `UIDVALIDITY` to the value the id was issued under, and throws a clear "message id is
-      stale — re-list the folder" error on mismatch. One guard, inherited by every write handler.
-- [ ] Copy the full `src/utils/format.js` set from a sibling wrapper (currently only `formatTable`):
-      `formatField`, `formatCsv`, `formatDate`, `formatBytes` (attachment sizes), `formatHeader`,
-      `formatSection`, `formatPaginationHint`. Add `src/cli/utils/list.js` column selector
-      (`buildColumnSelector`) for `--fields`/`--format`.
-- [ ] `jsconfig.json` (gradual `checkJs`), `typecheck` npm script, `typescript` + `@types/node` devDeps.
+### Phase 1: Transport seam + presentation helpers ✅
+- [x] Added `src/engine/smtp.js` — a `nodemailer` `Mailer` with the same Pattern-C credential seam
+      (`resolveAccount` layers env → config → override + zod-validates; `verify()` on connect; SMTP
+      user/pass fall back to IMAP for the single-app-password case).
+- [x] Defined the session **`ctx`** in `src/engine/transport.js` — `createTransport(account)` lazily
+      wraps `Session` (IMAP) + `Mailer` (SMTP), exposing 13 primitive ops (`list`, `search`,
+      `fetchFull`, `fetchAttachments`, `listFolders`, `setFlag`, `move`, `expunge`, `createFolder`,
+      `renameFolder`, `deleteFolder`, `send`) + `close()` (tears down whichever connections opened).
+      The `createTransport` analog for a protocol tool. (`resolveThread`/draft `append` join in 4/5.)
+- [x] **D4 — `UIDVALIDITY` assertion** landed in `Session.#openFolder`: id-targeting ops pass the
+      `uidValidity` the id was issued under; a mismatch throws "message id is stale — re-list the
+      folder." `list`/`search` now return `{ data, uidValidity, folder }` so callers round-trip it.
+      One guard, inherited by every write op. (Thin one-shots in `src/index.js` updated to unwrap
+      `.data` + use `fetchFull`, keeping the old CLI green until Phase 2.)
+- [x] Expanded `src/utils/format.js` beyond `formatTable`: `formatField`, `formatCsv`, `formatDate`,
+      `formatBytes`, `formatHeader`, `formatSection`, `formatPaginationHint`. Added
+      `src/cli/utils/list.js` `buildColumnSelector` for `--fields`/`--format`.
+- [x] `jsconfig.json` (gradual `checkJs:false`, `strictNullChecks:false`, `skipLibCheck`), `typecheck`
+      script, `typescript` + `@types/node` devDeps. **`npm run typecheck` → 0 errors; tests 18/18;
+      `fob-email --help` walks; new modules import clean.** `@ts-check` on the new leaf modules
+      (`format.js`, `cli/utils/list.js`); the engine stays unchecked (third-party protocol typings) —
+      the gradual approach, resources/handlers get `@ts-check` from Phase 2.
 
 ### Phase 2: `emails` vertical slice — REVIEW GATE ❌
 The reviewable prototype (one resource, end to end) before fanning out — the `fob-stm` accounts model.
