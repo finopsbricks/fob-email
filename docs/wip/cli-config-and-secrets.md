@@ -1,10 +1,9 @@
 # fob-email — Align to the CLI Config & Secrets Standard
 
-## Status: ALL PHASES DONE (2026-07-25)
+## Status: COMPLETE (2026-07-25)
 
-All five numbered phases are complete. One cross-cutting decision remains open: the **Precedence**
-item below (retiring the single-account `IMAP_*`/`SMTP_*` env vars) is a worker-facing contract
-change, deliberately not bundled into any phase — see the note in Phase 1.
+All five numbered phases and every cross-cutting decision (including **Precedence** — the single-account
+`IMAP_*`/`SMTP_*` env vars are retired) are done.
 
 Bring the email wrapper (`@fob/email`, binary `fob-email`) in line with the CLI **config /
 secrets / command-surface** standard decided for `fob-stm` this session. Same decisions, adapted to
@@ -54,8 +53,11 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
   non-secret metadata — email's analog of org_id/org_slug. No new server endpoint needed: a
   successful `connect()` already knows the logged-in identity, so resolve on `profiles add` and
   `profiles refresh`, and never block add on it.
-- **Precedence.** Standardize to flag > `FOB_EMAIL_ACCOUNTS` env > config current profile; retire the
-  single-account `IMAP_*` / `SMTP_*` convenience vars.
+- **Precedence.** ✅ (2026-07-25) Standardized to flag > `FOB_EMAIL_ACCOUNTS` env > config current;
+  retired the single-account `IMAP_*` / `SMTP_*` vars (removed `singleFromEnv`). `FOB_EMAIL_ACCOUNTS`
+  (JSON map) is now the sole worker env contract for both single- and multi-account. `resolveAccount`:
+  named → env map then file; no name → first env entry, then config `current`, then first file account.
+  Test in `test/config.test.js`; README worker section updated.
 
 ## Open Questions
 

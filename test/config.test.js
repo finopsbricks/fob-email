@@ -59,3 +59,17 @@ test('removeAccount reassigns current when removing the active account', () => {
   assert.equal(statSync(cfg.CONFIG_PATH).mode & 0o777, 0o600);
   assert.ok(readFileSync(cfg.CONFIG_PATH, 'utf8').includes('current: gmail'));
 });
+
+test('precedence: FOB_EMAIL_ACCOUNTS env selects by name and beats config for the default', () => {
+  // config currently has only `gmail` (current).
+  process.env.FOB_EMAIL_ACCOUNTS = JSON.stringify({
+    envbox: { imap: { host: 'imap.env.com', port: 993, user: 'e@env.com', pass: 'envpw', tls: true } },
+  });
+  try {
+    assert.equal(cfg.resolveAccount('envbox').imap.host, 'imap.env.com'); // named from env
+    assert.equal(cfg.resolveAccount().imap.host, 'imap.env.com'); // no name → env beats config current
+  } finally {
+    delete process.env.FOB_EMAIL_ACCOUNTS;
+  }
+  assert.equal(cfg.resolveAccount().imap.host, 'imap.gmail.com'); // env gone → config current
+});

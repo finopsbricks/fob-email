@@ -5,8 +5,8 @@
  *
  * JSON on stdout, logs on stderr, meaningful exit codes — so a worker and a
  * shell pipeline consume it the same way. Credentials come from
- * ~/.fob/fob-email/config.yml or IMAP_* / FOB_EMAIL_ACCOUNTS env (see config.js).
- * The `config accounts` credential-management tree lands in Phase 3.
+ * ~/.fob/fob-email/config.yml or the FOB_EMAIL_ACCOUNTS env map (see config.js);
+ * the `config accounts` tree manages the former.
  */
 
 import yargs from 'yargs';

@@ -19,14 +19,15 @@ npm install
 
 Resolved **env-first**, with a YAML file fallback for CLI use.
 
-**Workers** — supply secrets via the worker's `.env` (loaded with `dotenv`), the fob convention:
+**Workers** — set `FOB_EMAIL_ACCOUNTS` in the worker's `.env` (loaded with `dotenv`) to a JSON map
+`{ name: { imap, smtp } }`. This is the single worker env contract for both one and many accounts:
 
 ```
-IMAP_HOST=  IMAP_PORT=993  IMAP_USER=  IMAP_PASSWORD=  IMAP_TLS=true
-SMTP_HOST=  SMTP_PORT=465  SMTP_USER=  SMTP_PASS=  SMTP_SECURE=true
+FOB_EMAIL_ACCOUNTS={"gmail":{"imap":{"host":"imap.gmail.com","port":993,"user":"me@gmail.com","pass":"app-pw","tls":true},"smtp":{"host":"smtp.gmail.com","port":465,"user":"me@gmail.com","pass":"app-pw","secure":true}}}
 ```
 
-For multiple accounts, set `FOB_EMAIL_ACCOUNTS` to a JSON map `{ name: { imap, smtp } }`.
+Pass an account name to select one (`listEmails({ account: 'gmail' })`); with no name, the first
+entry is used. (The old single-account `IMAP_*`/`SMTP_*` vars were retired in favor of this path.)
 
 **CLI / hands-on** — a YAML file under the shared fob family root, `~/.fob/fob-email/config.yml`
 (override the dir with `FOB_EMAIL_CONFIG_DIR`); enforced mode `0600`:
@@ -39,9 +40,9 @@ accounts:
     smtp: { host: smtp.gmail.com, port: 465, user: me@gmail.com, pass: app-pw, secure: true }
 ```
 
-Precedence — named account: `FOB_EMAIL_ACCOUNTS` env → file. Default (no name): `IMAP_*` env
-→ file `current` → first file account → first env account. So a worker's `.env` always wins;
-the file is the fallback.
+Precedence (**flag > env > config**) — named account (`--account`/`account:`): `FOB_EMAIL_ACCOUNTS`
+env → file. No name: first `FOB_EMAIL_ACCOUNTS` entry → file `current` → first file account. So a
+worker's `.env` always wins; the file is the CLI fallback.
 
 ## Library
 

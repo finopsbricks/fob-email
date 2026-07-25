@@ -20,9 +20,13 @@ import { z } from 'zod';
  * client needs; listAccounts() returns metadata only (never the password). That
  * seam — per CLI standard decision A — is where a future keychain layer plugs in.
  *
- * Precedence for a named account:  FOB_EMAIL_ACCOUNTS env  →  config file
- * Precedence for the default (no name):  IMAP_* env  →  file current  →  first
- * file account  →  first env account.
+ * Precedence (standard: flag > env > config):
+ *   - named account (the `account` arg / --account flag):  FOB_EMAIL_ACCOUNTS env  →  config file
+ *   - no name:  first FOB_EMAIL_ACCOUNTS entry  →  config `current`  →  first file account
+ *
+ * FOB_EMAIL_ACCOUNTS is a JSON map `{ name: { imap, smtp } }` — the worker env
+ * contract for both single- and multi-account setups. (The old single-account
+ * IMAP_ and SMTP_ convenience vars were retired in favor of this one path.)
  */
 
 const CONFIG_DIR = process.env.FOB_EMAIL_CONFIG_DIR || join(homedir(), '.fob', 'fob-email');
@@ -138,7 +142,6 @@ export function resolveAccount(account) {
   const name = account;
   const envMap = parseJson(process.env.FOB_EMAIL_ACCOUNTS);
   const cfg = loadConfig();
-  const single = process.env.IMAP_HOST ? singleFromEnv() : null;
 
   let raw;
   if (name) {
@@ -148,13 +151,12 @@ export function resolveAccount(account) {
     }
   } else {
     raw =
-      single ??
+      (envMap ? Object.values(envMap)[0] : null) ??
       (cfg.current ? cfg.accounts?.[cfg.current] : null) ??
-      Object.values(cfg.accounts ?? {})[0] ??
-      (envMap ? Object.values(envMap)[0] : null);
+      Object.values(cfg.accounts ?? {})[0];
     if (!raw) {
       throw new Error(
-        `No email account configured. Set IMAP_* / FOB_EMAIL_ACCOUNTS env, or run \`fob-email config accounts add <name>\` (${CONFIG_PATH}).`,
+        `No email account configured. Set FOB_EMAIL_ACCOUNTS env, or run \`fob-email config accounts add <name>\` (${CONFIG_PATH}).`,
       );
     }
   }
@@ -163,24 +165,4 @@ export function resolveAccount(account) {
 
 function parseJson(s) {
   return s ? JSON.parse(s) : null;
-}
-
-function singleFromEnv() {
-  const bool = (v, d) => (v == null ? d : v !== 'false');
-  return {
-    imap: {
-      host: process.env.IMAP_HOST,
-      port: Number(process.env.IMAP_PORT ?? 993),
-      user: process.env.IMAP_USER,
-      pass: process.env.IMAP_PASSWORD ?? process.env.IMAP_PASS,
-      tls: bool(process.env.IMAP_TLS, true),
-    },
-    smtp: {
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 465),
-      user: process.env.SMTP_USER ?? process.env.IMAP_USER,
-      pass: process.env.SMTP_PASS ?? process.env.SMTP_PASSWORD,
-      secure: bool(process.env.SMTP_SECURE, true),
-    },
-  };
 }
