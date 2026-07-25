@@ -68,7 +68,22 @@ fob-email list --account gmail | fob-email filter --from tally --has-attachment
 ```
 
 JSON on stdout, logs on stderr, meaningful exit codes — so a worker and a shell pipeline
-consume it the same way.
+consume it the same way. `fob-email --help` lists everything.
+
+### Managing accounts
+
+The config file above can also be managed from the CLI (`accounts` is an alias of `profiles`):
+
+```
+fob-email config accounts add gmail \
+  --imap-host imap.gmail.com --imap-user me@gmail.com --imap-pass <app-pw> \
+  --smtp-host smtp.gmail.com                 # smtp user/pass default to the imap ones
+fob-email config accounts list               # table, current marked with *, secrets never shown
+fob-email config accounts use work           # switch the current account
+fob-email config accounts remove gmail       # (alias: rm)
+```
+
+Credentials are written to `~/.fob/fob-email/config.yml` at mode `0600`.
 
 ## Status
 

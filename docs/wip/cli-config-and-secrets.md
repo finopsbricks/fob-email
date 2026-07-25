@@ -58,10 +58,10 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
 - [x] **Package rename?** `@fob/lib-email` → `@fob/email` — **done** (2026-07-25). Aligned scope with
       `@fob/stm`; binary stays `fob-email`. No worker imports the package yet, so nothing to migrate.
       Repo also moved `lib/lib-email/` → `cli/fob-email/` alongside the other `cli/*` wrappers.
-- [ ] **Domain alias:** `accounts` (matches current vocabulary) vs a neutral `profiles`-only surface?
-      Leaning `accounts` alias.
-- [ ] **Config schema key:** store under `accounts:` + `current` (domain-faithful, like fob-stm's
-      `orgs:`), or `profiles:` + `current`? Leaning `accounts:` to match the alias.
+- [x] **Domain alias:** resolved — `profiles` is the primary surface (mirrors fob-stm), `accounts` is
+      the domain alias. Both `fob-email config profiles …` and `… config accounts …` work.
+- [x] **Config schema key:** resolved — stored under `accounts:` + `current` (domain-faithful). The CLI
+      surface says `profiles` (standard term); the stored data says `accounts` (email's term).
 
 ## Implementation Phases
 
@@ -90,9 +90,14 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
 - [x] Client exports (`src/index.js`) untouched — the retrofit is CLI-only. `config accounts` tree
       slots into `src/cli/index.js` next (Phase 3).
 
-### Phase 3: `config profiles`/`accounts` command surface ❌ (after Phase 2)
-- [ ] `fob-email config profiles <list|add|use|remove>` (+ `accounts` alias, `rm` alias).
-- [ ] `profiles list` table + current marker + `config: <path>` footer.
+### Phase 3: `config profiles`/`accounts` command surface ✅ (2026-07-25)
+- [x] `fob-email config profiles <list|add|use|remove>` with `accounts` domain alias and `rm` alias.
+      Tree: `src/cli/config/{index,list,add,use,remove}.js` calling the Phase 1 storage mutators.
+- [x] `list` renders a table (current marked `*`) + `(* = current)  config: <path>` footer; `--json`
+      for raw output. Secrets never printed (table or json) — verified in `test/cli-config.test.js`.
+- [x] `add <name>` takes `--imap-*` (required host/user/pass) + optional `--smtp-*` block (enabled by
+      `--smtp-host`; smtp user/pass default to the imap ones). Does **not** touch the network — identity
+      caching stays in Phase 4 (decision G: adding creds must not require a round-trip).
 
 ### Phase 4: Identity caching (G) ❌
 - [ ] Resolve the authenticated mailbox address on `profiles add` + `profiles refresh <name>`/`--all`

@@ -15,6 +15,7 @@ import { safe } from './_helpers.js';
 import { listHandler } from './list.js';
 import { readHandler } from './read.js';
 import { filterHandler } from './filter.js';
+import { buildConfigSubcommands } from './config/index.js';
 
 export function run(argv) {
   return yargs(argv)
@@ -54,6 +55,7 @@ export function run(argv) {
           .option('unseen', { describe: 'Only unseen messages', type: 'boolean' }),
       safe(filterHandler),
     )
+    .command('config <resource>', 'Manage email account credentials (alias: accounts)', buildConfigSubcommands)
     .demandCommand(1, 'Specify a command. Try `fob-email --help`.')
     .strict()
     .help()
