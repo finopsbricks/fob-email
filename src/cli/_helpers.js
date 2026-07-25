@@ -2,6 +2,19 @@
  * Shared yargs helpers for the fob-email CLI.
  */
 
+import { fobEmail } from '../index.js';
+
+/**
+ * Build an email client for the command's `--account` (or the default account).
+ * The presentation layer's single seam to the resource layer — handlers call
+ * `clientFor(argv).emails.*` and must `close()` it (a `finally`). Mirrors
+ * fob-stm's `clientFor`.
+ * @param {{ account?: string }} [argv]
+ */
+export function clientFor(argv = {}) {
+  return fobEmail(argv.account);
+}
+
 /**
  * Wrap a handler so unexpected exceptions exit cleanly without a stack trace.
  * Set FOB_DEBUG=1 to see the full stack.

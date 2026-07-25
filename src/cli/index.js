@@ -1,47 +1,28 @@
 /**
  * CLI entry point for fob-email.
  *
- *   fob-email <command> [options]
+ *   fob-email <resource> <action> [target] [options]
  *
- * JSON on stdout, logs on stderr, meaningful exit codes — so a worker and a
- * shell pipeline consume it the same way. Credentials come from
- * ~/.fob/fob-email/config.yml or the FOB_EMAIL_ACCOUNTS env map (see config.js);
- * the `config accounts` tree manages the former.
+ * A resource/action grammar over the objects a finance FDE thinks in — emails,
+ * folders, drafts — not IMAP internals. Human-readable output by default;
+ * `--json` on every read command emits the raw payload (data on stdout,
+ * diagnostics on stderr) so a shell pipeline or a worker consumes it cleanly.
+ * Credentials come from ~/.fob/fob-email/config.yml or the FOB_EMAIL_ACCOUNTS env
+ * map (see config.js); the `config accounts` tree manages the former.
  */
 
 import yargs from 'yargs';
 
 import { safe } from './_helpers.js';
-import { listHandler } from './list.js';
-import { readHandler } from './read.js';
 import { filterHandler } from './filter.js';
+import { buildEmailsSubcommands } from './emails/index.js';
 import { buildConfigSubcommands } from './config/index.js';
 
 export function run(argv) {
   return yargs(argv)
     .scriptName('fob-email')
-    .usage('$0 <command> [options]')
-    .command(
-      'list',
-      'List envelopes in a folder (newest first, JSON to stdout)',
-      (y) =>
-        y
-          .option('account', { describe: 'Configured account name', type: 'string' })
-          .option('folder', { describe: 'Mailbox folder', type: 'string', default: 'INBOX' })
-          .option('unseen', { describe: 'Only unseen messages', type: 'boolean' })
-          .option('limit', { describe: 'Max messages', type: 'number', default: 50 }),
-      safe(listHandler),
-    )
-    .command(
-      'read <id>',
-      'Read one full message by UID (JSON to stdout)',
-      (y) =>
-        y
-          .positional('id', { describe: 'Message UID', type: 'number' })
-          .option('account', { describe: 'Configured account name', type: 'string' })
-          .option('folder', { describe: 'Mailbox folder', type: 'string', default: 'INBOX' }),
-      safe(readHandler),
-    )
+    .usage('$0 <resource> <action> [options]')
+    .command('emails <action>', 'Read and manage emails', buildEmailsSubcommands)
     .command(
       'filter',
       'Filter an envelopes JSON array from stdin (pure, no connection)',
@@ -56,7 +37,7 @@ export function run(argv) {
       safe(filterHandler),
     )
     .command('config <resource>', 'Manage email account credentials (alias: accounts)', buildConfigSubcommands)
-    .demandCommand(1, 'Specify a command. Try `fob-email --help`.')
+    .demandCommand(1, 'Specify a resource. Try `fob-email --help`.')
     .strict()
     .help()
     .alias('h', 'help')

@@ -1,8 +1,35 @@
 import { connectSession } from './engine/imap.js';
+import { createTransport } from './engine/transport.js';
+import { buildEmails } from './resources/emails.js';
 
 export { connectSession };
 export { filterEmails } from './domain/filter.js';
 export { resolveAccount } from './config.js';
+
+/**
+ * The importable email client — the fob-stm `fobStm(creds)` analog for a
+ * protocol tool. Binds one account's credentials into resource namespaces over a
+ * lazily-connected transport. The CLI builds the same client (see
+ * `src/cli/_helpers.js` `clientFor`) and calls these same namespaces, so the CLI
+ * and the library can never drift — every op is defined once, in src/resources/.
+ *
+ * Connections are lazy; the caller must `close()` (or use the one-shot helpers).
+ *
+ *   import { fobEmail } from '@fob/email';
+ *   const mbox = fobEmail('work');
+ *   try { const { data } = await mbox.emails.list({ unseen: true }); }
+ *   finally { await mbox.close(); }
+ *
+ * @param {string|object} [account] account name, or a raw config object.
+ */
+export function fobEmail(account) {
+  const ctx = createTransport(account);
+  return {
+    emails: buildEmails(ctx),
+    /** Tear down whichever connections were opened. */
+    close: () => ctx.close(),
+  };
+}
 
 /** Connect and return a live session. Caller closes. Primary API for batching. */
 export async function connect(account) {

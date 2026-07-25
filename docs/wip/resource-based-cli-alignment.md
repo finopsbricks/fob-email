@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: IN PROGRESS (~18%) — Phase 1 + D5 engine-to-functional refactor done; Phase 2 (`emails` slice) next
+## Status: IN PROGRESS (~35%) — Phases 1–2 done (transport seam, D5 functional engine, `emails` list/show slice + types + tests); Phase 3 (fan-out) next
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -247,23 +247,25 @@ review gate.)*
       (`format.js`, `cli/utils/list.js`); the engine stays unchecked (third-party protocol typings) —
       the gradual approach, resources/handlers get `@ts-check` from Phase 2.
 
-### Phase 2: `emails` vertical slice — REVIEW GATE ❌
+### Phase 2: `emails` vertical slice — REVIEW GATE ✅
 The reviewable prototype (one resource, end to end) before fanning out — the `fob-stm` accounts model.
-- [ ] `src/types/general/` (`Transport`/session, `Credentials`) + `src/types/domain/Email.types.js`,
-      `Attachment.types.js`.
-- [ ] `src/resources/emails.js` — `buildEmails(ctx)`, `@ts-check`, co-located `EmailsApi` typedef,
-      `@returns`-bound so `tsc` verifies the impl. Start with `list` + `get`.
-- [ ] `fobEmail(account)` factory in `src/index.js` exposing `emails` + `close()`; `clientFor(argv)` in
-      `src/cli/_helpers.js` (resolve profile → `fobEmail(account)`). Keep one-shot helpers as wrappers.
-- [ ] Refactor `src/cli/list.js` → `src/cli/emails/list.js` and `src/cli/read.js` →
-      `src/cli/emails/show.js` (rename `read`→`show`), reduced to presentation: argv→domain, call
-      `mbox.emails.*`, **human table by default** + `--json` branch. Wire `emails <action>` into the
-      root command tree; `.demandCommand(1)` so `emails` lists its actions.
-- [ ] Tests (`tests/` — keep `node --test` or move to Jest ESM per `testing.md`): mock the `ctx`/client,
-      assert stdout/stderr/exit via a `captureOutput()` helper. Cover the correct engine call, the
-      table output, the `--json` branch, and the error/exit path.
-- [ ] **REVIEW GATE:** confirm the stateful-`ctx` + `close()` shape, the `list` return contract, and
-      the human-output format read well before fanning out.
+- [x] `src/types/general/` (`Transport`, `Credentials`/`Account`, barrel) + `src/types/domain/`
+      (`Email.types.js` with `Envelope`/`Email`/`Address`, `Attachment.types.js`).
+- [x] `src/resources/emails.js` — `buildEmails(ctx)`, `@ts-check`, co-located `EmailsApi` typedef,
+      `@returns`-bound so `tsc` verifies the impl. `list` + `get` (the review-gate slice).
+- [x] `fobEmail(account)` factory in `src/index.js` exposing `emails` + `close()`; `clientFor(argv)` in
+      `src/cli/_helpers.js` (`fobEmail(argv.account)`). One-shot helpers kept as wrappers.
+- [x] `src/cli/list.js` → `src/cli/emails/list.js` (column selector, **human table default** + `--json`
+      emitting the raw envelope array) and `src/cli/read.js` → `src/cli/emails/show.js` (rename
+      `read`→`show`; formatted headers/body/attachments + `--json`). Handlers are presentation-only and
+      take an injectable client seam (`(argv, mbox)`) for hermetic tests. `emails <action>` wired into
+      the root tree (`.demandCommand(1)`); old flat `list`/`read` removed.
+- [x] Tests (`test/`, `node --test`): `test/helpers.js` `captureOutput()` + `fakeClient()`;
+      `test/emails.test.js` covers resource delegation, table output, `--json`, empty folder, show
+      formatting/attachments, and `close()` — **8 new cases**.
+- [x] **REVIEW GATE — verified:** `npm run typecheck` → 0 errors; tests **26/26**; `--help`,
+      `emails --help` walk. Stateful-`ctx` + `close()` shape, `list` `{ data, uidValidity, folder }`
+      contract, and human output all confirmed. Ready for user review before the Phase-3 fan-out.
 
 ### Phase 3: Fan out the rest of `emails` + `folders` (full CRUD) ❌
 Each verb follows the Phase-2 recipe (resource method + `@ts-check` handler + human/`--json` output).
