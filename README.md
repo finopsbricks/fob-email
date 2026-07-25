@@ -28,11 +28,11 @@ SMTP_HOST=  SMTP_PORT=465  SMTP_USER=  SMTP_PASS=  SMTP_SECURE=true
 
 For multiple accounts, set `FOB_EMAIL_ACCOUNTS` to a JSON map `{ name: { imap, smtp } }`.
 
-**CLI / hands-on** — a YAML file in the fobs secret home, `~/.fobs/email.yml` (override the
-dir with `FOBS_CONFIG_DIR`, or the whole path with `FOB_EMAIL_CONFIG`); mode `600`:
+**CLI / hands-on** — a YAML file under the shared fob family root, `~/.fob/fob-email/config.yml`
+(override the dir with `FOB_EMAIL_CONFIG_DIR`); enforced mode `0600`:
 
 ```yaml
-default: gmail
+current: gmail
 accounts:
   gmail:
     imap: { host: imap.gmail.com, port: 993, user: me@gmail.com, pass: app-pw, tls: true }
@@ -40,7 +40,8 @@ accounts:
 ```
 
 Precedence — named account: `FOB_EMAIL_ACCOUNTS` env → file. Default (no name): `IMAP_*` env
-→ file `default` → first env account. So a worker's `.env` always wins; the file is the fallback.
+→ file `current` → first file account → first env account. So a worker's `.env` always wins;
+the file is the fallback.
 
 ## Library
 

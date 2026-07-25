@@ -65,11 +65,21 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
 
 ## Implementation Phases
 
-### Phase 1: Config storage on-standard ❌ (unblocked)
-- [ ] Move config to `~/.fob/fob-email/config.yml`; resolve via `os.homedir()`; `FOB_EMAIL_CONFIG_DIR`
-      override; drop `~/.fobs`/`FOBS_CONFIG_DIR`/`FOB_EMAIL_CONFIG`.
-- [ ] Enforce mode `0600` on every write.
-- [ ] Separate secret (password) from metadata in the stored shape; keep `resolveAccount` as the seam.
+### Phase 1: Config storage on-standard ✅ (2026-07-25)
+- [x] Moved config to `~/.fob/fob-email/config.yml`; resolved via `os.homedir()`; `FOB_EMAIL_CONFIG_DIR`
+      override; dropped `~/.fobs`/`FOBS_CONFIG_DIR`/`FOB_EMAIL_CONFIG`.
+- [x] Enforce mode `0600` on every write — `saveConfig` chmods after write, so it holds on rewrite too
+      (not just create, which is all `writeFileSync({mode})` guarantees).
+- [x] Secret/metadata seam realized the fob-stm way (decision A): `config.js` is the sole reader/writer
+      of the password; `listAccounts()` returns metadata only (omits `pass`). Kept `resolveAccount` as
+      the seam — it still reconstitutes the full `{imap, smtp}` object the client needs, unchanged.
+- [x] Added storage mutators `addAccount`/`removeAccount`/`useAccount`/`listAccounts` + pointer renamed
+      `default:` → `current:`. These are the primitives Phase 3's CLI verbs will call. Tests in
+      `test/config.test.js` (0600 enforcement, secret omission, current-pointer reassignment).
+
+> **Not done here (deliberately):** retiring the single-account `IMAP_*`/`SMTP_*` env vars (the
+> "Precedence" decision) is a worker-facing contract change, not a Phase 1 storage bullet — deferred to
+> the precedence/command-surface work. `IMAP_*` + `FOB_EMAIL_ACCOUNTS` still resolve as before.
 
 ### Phase 2: yargs CLI retrofit ❌ (parent tracker Phase 6 — prerequisite for Phase 3)
 - [ ] Replace `bin/cli.js` `parse()`/switch with the yargs skeleton + grammar; keep client exports.
