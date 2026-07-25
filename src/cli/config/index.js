@@ -3,6 +3,7 @@ import { listConfigHandler } from './list.js';
 import { addConfigHandler } from './add.js';
 import { useConfigHandler } from './use.js';
 import { removeConfigHandler } from './remove.js';
+import { refreshConfigHandler } from './refresh.js';
 
 /**
  * The stored object is a credential "profile" — a named set of connection
@@ -34,7 +35,12 @@ function buildProfilesSubcommands(yargs) {
           .option('smtp-port', { describe: 'SMTP port', type: 'number', default: 465 })
           .option('smtp-user', { describe: 'SMTP username (defaults to --imap-user)', type: 'string' })
           .option('smtp-pass', { describe: 'SMTP password (defaults to --imap-pass)', type: 'string' })
-          .option('smtp-secure', { describe: 'Use TLS for SMTP', type: 'boolean', default: true }),
+          .option('smtp-secure', { describe: 'Use TLS for SMTP', type: 'boolean', default: true })
+          .option('verify', {
+            describe: 'Connect to verify creds and cache the mailbox address (--no-verify to skip)',
+            type: 'boolean',
+            default: true,
+          }),
       safe(addConfigHandler),
     )
     .command(
@@ -49,7 +55,16 @@ function buildProfilesSubcommands(yargs) {
       (y) => y.positional('name', { describe: 'Account name', type: 'string' }),
       safe(removeConfigHandler),
     )
-    .demandCommand(1, 'Specify an action: list, add, use, remove');
+    .command(
+      'refresh [name]',
+      "Re-resolve an account's mailbox address from the server (--all for every account)",
+      (y) =>
+        y
+          .positional('name', { describe: 'Account name (omit with --all)', type: 'string' })
+          .option('all', { describe: 'Refresh every account', type: 'boolean' }),
+      safe(refreshConfigHandler),
+    )
+    .demandCommand(1, 'Specify an action: list, add, use, remove, refresh');
 }
 
 export function buildConfigSubcommands(yargs) {

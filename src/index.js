@@ -28,3 +28,17 @@ export async function readEmail({ account, ...opts } = {}) {
     await s.close();
   }
 }
+
+/**
+ * Resolve the authenticated mailbox identity for an account: connect, read the
+ * identity, close. `{ address }`, validated by a successful login. Exposed on
+ * the client so workers can self-identify too (CLI standard, decision G).
+ */
+export async function getIdentity(account) {
+  const s = await connect(account);
+  try {
+    return s.identity();
+  } finally {
+    await s.close();
+  }
+}

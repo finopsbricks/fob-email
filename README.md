@@ -81,9 +81,12 @@ fob-email config accounts add gmail \
 fob-email config accounts list               # table, current marked with *, secrets never shown
 fob-email config accounts use work           # switch the current account
 fob-email config accounts remove gmail       # (alias: rm)
+fob-email config accounts refresh --all       # re-cache each mailbox address from the server
 ```
 
-Credentials are written to `~/.fob/fob-email/config.yml` at mode `0600`.
+`add` connects once to verify the creds and cache the authenticated mailbox address (shown as an
+`ADDRESS` column in `list`); pass `--no-verify` to skip the network. Credentials are written to
+`~/.fob/fob-email/config.yml` at mode `0600`. Workers can self-identify via `getIdentity(account)`.
 
 ## Status
 

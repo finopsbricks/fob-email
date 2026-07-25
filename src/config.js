@@ -108,6 +108,22 @@ export function listAccounts() {
   return { current: cfg.current, path: CONFIG_PATH, accounts };
 }
 
+/**
+ * Merge the server-resolved mailbox `address` into a stored account as
+ * non-secret metadata (decision G). Leaves credentials untouched.
+ */
+export function setAccountIdentity(accountName, { address } = {}) {
+  const cfg = loadConfig();
+  if (!cfg.accounts[accountName]) throw new Error(`No account named '${accountName}'.`);
+  cfg.accounts[accountName] = { ...cfg.accounts[accountName], address: address ?? null };
+  return saveConfig(cfg);
+}
+
+/** Every configured account name (for `refresh --all`). */
+export function accountNames() {
+  return Object.keys(loadConfig().accounts);
+}
+
 /** Absolute path to the config file (shown in the `accounts list` footer). */
 export function configPath() {
   return CONFIG_PATH;

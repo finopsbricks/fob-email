@@ -9,9 +9,11 @@ import { resolveAccount } from '../config.js';
  */
 export class Session {
   #client;
+  #address;
 
-  constructor(client) {
+  constructor(client, address) {
     this.#client = client;
+    this.#address = address ?? null;
   }
 
   /** @param {string|object} [account] */
@@ -25,7 +27,16 @@ export class Session {
       logger: false,
     });
     await client.connect();
-    return new Session(client);
+    return new Session(client, cfg.imap.user);
+  }
+
+  /**
+   * The authenticated mailbox — the login user, confirmed by a successful
+   * connect(). IMAP has no "whoami"; the login username is the mailbox address
+   * for the providers we target, and reaching an open Session means auth passed.
+   */
+  identity() {
+    return { address: this.#address };
   }
 
   /** List envelopes (newest first). */

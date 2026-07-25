@@ -1,15 +1,16 @@
 import { addAccount } from '../../config.js';
+import { refreshIdentity } from './_identity.js';
 
 /**
  * `fob-email config accounts add <name>` — store IMAP (and optional SMTP)
  * connection credentials for an account (Pattern C).
  *
  * SMTP is enabled by passing --smtp-host; its user/pass default to the IMAP
- * ones (the common single-app-password case). Identity caching (the mailbox
- * address) is resolved in Phase 4's `refresh`, never here — adding creds must
- * not require a network round-trip (decision G).
+ * ones (the common single-app-password case). After saving, best-effort connect
+ * to verify the creds and cache the mailbox address (decision G) — this never
+ * blocks the save, and --no-verify skips the network entirely (scripts/offline).
  */
-export function addConfigHandler(argv) {
+export async function addConfigHandler(argv) {
   const imap = {
     host: argv['imap-host'],
     port: argv['imap-port'],
@@ -31,4 +32,9 @@ export function addConfigHandler(argv) {
 
   addAccount(argv.name, { imap, smtp });
   console.log(`Saved account '${argv.name}' to the fob-email config (mode 0600).`);
+
+  if (argv.verify !== false) {
+    const id = await refreshIdentity(argv.name);
+    if (id?.address) console.log(`Verified — authenticates as ${id.address}.`);
+  }
 }

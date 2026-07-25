@@ -99,9 +99,20 @@ Pre-customer, so **hard refactor, no migration** (same call as fob-stm). Map eac
       `--smtp-host`; smtp user/pass default to the imap ones). Does **not** touch the network — identity
       caching stays in Phase 4 (decision G: adding creds must not require a round-trip).
 
-### Phase 4: Identity caching (G) ❌
-- [ ] Resolve the authenticated mailbox address on `profiles add` + `profiles refresh <name>`/`--all`
-      from the IMAP session; cache as non-secret metadata; never block add on failure.
+### Phase 4: Identity caching (G) ✅ (2026-07-25)
+- [x] `getIdentity(account)` on the client (`src/index.js`) → `{ address }`, resolved from the IMAP
+      `Session` (`imap.js` `identity()`). IMAP has no whoami: the address is the login user, and a
+      successful connect is the validation. Exposed on the client so workers can self-identify too.
+- [x] `config accounts refresh [name] --all` re-resolves and caches the address; `add` verifies on
+      save (best-effort). Both go through `refreshIdentity()` which never throws — `--no-verify` skips
+      the network on `add`. Cached `address` is non-secret metadata via `setAccountIdentity`; surfaces
+      as the `ADDRESS` column in `list` (shown once any account has resolved one).
+- [x] Never blocks add on failure — verified manually (ECONNREFUSED → warn on stderr, `(unresolved)`
+      on stdout, exit 0) and in `test/cli-config.test.js` (cached-identity rendering).
+
+> Honest limitation: IMAP can't return a mailbox address independent of the login username, so
+> `address` == the authenticated `imap.user`. The value is *validation* (creds actually work) + a
+> self-describing config, not a second independent identifier like fob-stm's org_id/slug.
 
 ### Phase 5: Naming alignment ✅ (2026-07-25)
 - [x] Renamed `@fob/lib-email` → `@fob/email` (`package.json`, `package-lock.json`, `README.md`); kept
