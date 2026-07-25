@@ -13,9 +13,8 @@
 
 import yargs from 'yargs';
 
-import { safe } from './_helpers.js';
-import { filterHandler } from './filter.js';
 import { buildEmailsSubcommands } from './emails/index.js';
+import { buildFoldersSubcommands } from './folders/index.js';
 import { buildConfigSubcommands } from './config/index.js';
 
 export function run(argv) {
@@ -23,19 +22,7 @@ export function run(argv) {
     .scriptName('fob-email')
     .usage('$0 <resource> <action> [options]')
     .command('emails <action>', 'Read and manage emails', buildEmailsSubcommands)
-    .command(
-      'filter',
-      'Filter an envelopes JSON array from stdin (pure, no connection)',
-      (y) =>
-        y
-          .option('from', { describe: 'Substring match on From', type: 'string' })
-          .option('to', { describe: 'Substring match on To', type: 'string' })
-          .option('subject', { describe: 'Substring match on Subject', type: 'string' })
-          .option('has-attachment', { describe: 'Only messages with an attachment', type: 'boolean' })
-          .option('seen', { describe: 'Only seen messages', type: 'boolean' })
-          .option('unseen', { describe: 'Only unseen messages', type: 'boolean' }),
-      safe(filterHandler),
-    )
+    .command('folders <action>', 'List and manage folders', buildFoldersSubcommands)
     .command('config <resource>', 'Manage email account credentials (alias: accounts)', buildConfigSubcommands)
     .demandCommand(1, 'Specify a resource. Try `fob-email --help`.')
     .strict()

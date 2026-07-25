@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: IN PROGRESS (~35%) — Phases 1–2 done (transport seam, D5 functional engine, `emails` list/show slice + types + tests); Phase 3 (fan-out) next
+## Status: IN PROGRESS (~55%) — Phases 1–3 done (engine, `emails` full CRUD + send, `folders` CRUD, filter moved); Phase 4 (`threads`) next
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -117,9 +117,9 @@ We mine it for the **email-native objects** and deliberately drop its product-in
 
 ```
 fob-email emails list      [--folder INBOX] [--unread] [--from X] [--subject Y] [--since DATE] [--limit N] [--fields ...] [--format table|csv|json] [--json]
-fob-email emails search    <query> [--folder INBOX] [--from X] [--since DATE] [--limit N] [--json]   # IMAP SEARCH — keyword/header/date, not semantic
+fob-email emails search    [query] [--folder INBOX] [--from X] [--subject Y] [--since DATE] [--limit N] [--json]   # IMAP SEARCH — keyword/header/date, not semantic
 fob-email emails show      <id> [--folder INBOX] [--json]
-fob-email emails download  <id> [--attachments] [--output DIR] [--folder INBOX]   # pull invoices/receipts to disk
+fob-email emails download  <id> [--output DIR | -o DIR] [--folder INBOX]   # save attachments (invoices/receipts) to disk
 fob-email emails mark      <id> --read | --unread [--folder INBOX]
 fob-email emails move      <id> --to <folder> [--folder INBOX]
 fob-email emails delete    <id> [--folder INBOX] [--yes]
@@ -267,20 +267,25 @@ The reviewable prototype (one resource, end to end) before fanning out — the `
       `emails --help` walk. Stateful-`ctx` + `close()` shape, `list` `{ data, uidValidity, folder }`
       contract, and human output all confirmed. Ready for user review before the Phase-3 fan-out.
 
-### Phase 3: Fan out the rest of `emails` + `folders` (full CRUD) ❌
+### Phase 3: Fan out the rest of `emails` + `folders` (full CRUD) ✅
 Each verb follows the Phase-2 recipe (resource method + `@ts-check` handler + human/`--json` output).
-- [ ] `emails search` (IMAP `SEARCH`; keyword/header/date — document the no-semantic deviation),
-      `emails download` (attachments → disk; "Wrote <path>" to **stderr**), `emails mark`,
-      `emails move` (`--to <folder>`), `emails delete` (`--yes` guard). All id-targeting handlers pass
-      `--folder` through the D4 guard.
-- [ ] **D3 — shared message-builder.** `src/cli/emails/_message.js` maps
-      `--to`/`--subject`/`--body`/`--body-file`/repeatable `--attach` → a normalized message object;
-      `emails send` (SMTP, fire-and-forget) consumes it. Phase 5's `drafts` reuse the same builder.
-- [ ] **D1 — `folders` full CRUD.** `src/resources/folders.js` (`buildFolders(ctx)`:
-      `list`/`create`/`rename`/`delete`) + `src/cli/folders/*` (`list`, `create`, `rename`,
-      `delete` with `--yes`).
-- [ ] **D2 —** move `src/cli/filter.js` → `src/cli/emails/filter.js` (keep `src/domain/filter.js` pure).
-- [ ] `npm run typecheck` → 0 errors; all handlers `@ts-check`'d; help tree walks; no-creds → clean exit 1.
+- [x] `emails search` (IMAP `SEARCH` — `--query`→`text`, `--from`/`--subject`/`--since`; no-semantic
+      deviation documented), `emails download` (attachments → disk; "Wrote <path>" to **stderr**,
+      `-o/--output` dir; dropped the redundant `--attachments` flag), `emails mark` (`--read`/`--unread`,
+      exactly-one guard), `emails move` (`--to <folder>`), `emails delete` (`--yes` guard). Shared
+      envelope rendering extracted to `src/cli/emails/_envelopes.js` (used by `list` + `search`). All
+      id-targeting handlers take `--folder` (D4 guard available in the engine).
+- [x] **D3 — shared message-builder.** `src/cli/emails/_message.js` maps
+      `--to`/`--cc`/`--bcc`/`--subject`/`--body`/`--body-file`/repeatable `--attach` → a normalized
+      message object; `emails send` (SMTP) consumes it. Phase 5's `drafts` reuse the same builder.
+- [x] **D1 — `folders` full CRUD.** `src/types/domain/Folder.types.js` + `src/resources/folders.js`
+      (`buildFolders(ctx)`: `list`/`create`/`rename`/`delete`, wired into `fobEmail`) +
+      `src/cli/folders/*` (`list`, `create`, `rename` with `--to`, `delete` with `--yes`).
+- [x] **D2 —** moved `src/cli/filter.js` → `src/cli/emails/filter.js` (`src/domain/filter.js` stays pure);
+      top-level `filter` removed from the root tree.
+- [x] **Verified:** `npm run typecheck` → 0 errors; tests **43/43** (17 new: resource delegation,
+      search criteria, mark/move/delete guards, message-builder, send, folders CRUD); `emails`/`folders`
+      help trees walk; no-creds → clean exit 1; delete/rename guards exit 1.
 
 ### Phase 4: `threads` resource ❌
 Conversations are the object an FDE uses to trace a vendor exchange; strategy is server-dependent.

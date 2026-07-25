@@ -36,20 +36,35 @@ export function captureOutput() {
   };
 }
 
-/** A fake email client for handler tests: records calls, returns canned data, tracks close(). */
-export function fakeClient({ list, get } = {}) {
-  const calls = { list: [], get: [], closed: 0 };
+/**
+ * A fake email client for handler tests: records calls, returns canned data,
+ * tracks close(). Pass canned results per method; every call is recorded on
+ * `.calls` for assertions.
+ */
+export function fakeClient(canned = {}) {
+  const calls = {
+    list: [], search: [], get: [], download: [], mark: [], move: [], delete: [], send: [],
+    folders: { list: [], create: [], rename: [], delete: [] },
+    closed: 0,
+  };
+  const ret = (v, fallback) => (v !== undefined ? v : fallback);
   return {
     calls,
     emails: {
-      list: async (opts) => {
-        calls.list.push(opts);
-        return list ?? { data: [], uidValidity: 1, folder: opts?.folder ?? 'INBOX' };
-      },
-      get: async (id, opts) => {
-        calls.get.push({ id, opts });
-        return get ?? null;
-      },
+      list: async (opts) => (calls.list.push(opts), ret(canned.list, { data: [], uidValidity: 1, folder: opts?.folder ?? 'INBOX' })),
+      search: async (opts) => (calls.search.push(opts), ret(canned.search, { data: [], uidValidity: 1, folder: opts?.folder ?? 'INBOX' })),
+      get: async (id, opts) => (calls.get.push({ id, opts }), ret(canned.get, null)),
+      download: async (id, opts) => (calls.download.push({ id, opts }), ret(canned.download, [])),
+      mark: async (id, seen, opts) => (calls.mark.push({ id, seen, opts }), ret(canned.mark, { id, flag: '\\Seen', on: seen })),
+      move: async (id, to, opts) => (calls.move.push({ id, to, opts }), ret(canned.move, { id, to })),
+      delete: async (id, opts) => (calls.delete.push({ id, opts }), ret(canned.delete, { id, deleted: true })),
+      send: async (message) => (calls.send.push(message), ret(canned.send, { messageId: '<sent@x>', accepted: message.to, rejected: [] })),
+    },
+    folders: {
+      list: async () => (calls.folders.list.push(true), ret(canned.foldersList, [])),
+      create: async (name) => (calls.folders.create.push(name), ret(canned.folderResult, { path: name, created: true })),
+      rename: async (name, to) => (calls.folders.rename.push({ name, to }), ret(canned.folderResult, { from: name, to })),
+      delete: async (name) => (calls.folders.delete.push(name), ret(canned.folderResult, { path: name, deleted: true })),
     },
     close: async () => {
       calls.closed += 1;

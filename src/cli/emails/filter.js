@@ -1,9 +1,9 @@
-import { filterEmails } from '../index.js';
-import { emitJson, readStdin } from './_helpers.js';
+import { filterEmails } from '../../index.js';
+import { emitJson, readStdin } from '../_helpers.js';
 
 /**
- * `fob-email filter` — pure, no connection. Reads an envelopes JSON array from
- * stdin (typically piped from `fob-email list`) and filters it.
+ * `fob-email emails filter` — pure, no connection. Reads an envelopes JSON array
+ * from stdin (typically piped from `fob-email emails list --json`) and filters it.
  */
 export async function filterHandler(argv) {
   const envelopes = JSON.parse(await readStdin());
