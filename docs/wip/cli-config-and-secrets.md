@@ -1,6 +1,10 @@
 # fob-email — Align to the CLI Config & Secrets Standard
 
-## Status: NOT STARTED
+## Status: ALL PHASES DONE (2026-07-25)
+
+All five numbered phases are complete. One cross-cutting decision remains open: the **Precedence**
+item below (retiring the single-account `IMAP_*`/`SMTP_*` env vars) is a worker-facing contract
+change, deliberately not bundled into any phase — see the note in Phase 1.
 
 Bring the email wrapper (`@fob/email`, binary `fob-email`) in line with the CLI **config /
 secrets / command-surface** standard decided for `fob-stm` this session. Same decisions, adapted to
