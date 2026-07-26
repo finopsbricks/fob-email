@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: IN PROGRESS (~93%) — Phases 1–7 done (full resource CLI + config conformance); Phase 8 (retire old shape + publish) next
+## Status: COMPLETE — all 8 phases done; resource-based CLI + 2-in-1 library shipped at v0.1.0 (tests 65/65, typecheck 0). This file can be deleted (WIP standard).
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -369,12 +369,17 @@ Conversations are the object an FDE uses to trace a vendor exchange; **strategy 
 - [x] **Verified:** `npm run typecheck` → 0 errors; tests **65/65**; `config accounts list` and
       `config profiles list` both render with the footer.
 
-### Phase 8: Retire the old shape + publish the breaking change ❌
-- [ ] Remove the top-level `list`/`read`/`filter` commands (now under `emails`); update
-      `src/cli/index.js` usage/header (drop "JSON on stdout" framing).
-- [ ] Rewrite `src/index.js` library surface: `fobEmail` + retained one-shots; document the namespace API.
-- [ ] Audit + migrate any worker/pipeline consuming the old flat commands or JSON-by-default output.
-- [ ] Update `README`/docs; bump `package.json` version (breaking: command surface + output default).
+### Phase 8: Retire the old shape + publish the breaking change ✅
+- [x] Top-level `list`/`read`/`filter` removed (Phases 2–3); `src/cli/index.js` usage/header reframed to
+      the resource grammar (JSON-default framing dropped).
+- [x] `src/index.js` library surface: `fobEmail(account)` (emails/threads/drafts/folders + `close`) is
+      primary; one-shots (`connect`/`listEmails`/`readEmail`/`getIdentity`/`getProfile`) + pure
+      `filterEmails` retained and documented.
+- [x] Audited for consumers of the old flat commands / `@fob/email` — **none** (fresh repo, no
+      external importers or pipelines).
+- [x] Rewrote `README.md` to the resource grammar + `fobEmail` API + self-describing profiles; bumped
+      `package.json` to **0.1.0** (breaking: command surface + human-default output). Published to
+      `github.com/finopsbricks/fob-email`, tag `v0.1.0`.
 
 ## Related Files
 

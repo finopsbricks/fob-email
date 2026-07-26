@@ -1,7 +1,7 @@
 {
   "name": "@fob/email",
-  "version": "0.0.1",
-  "description": "Generic email primitives (IMAP/SMTP) usable as a library import or the fob-email CLI.",
+  "version": "0.1.0",
+  "description": "Resource-based email CLI + importable client over IMAP/SMTP (emails, threads, drafts, folders).",
   "type": "module",
   "main": "src/index.js",
   "exports": {
