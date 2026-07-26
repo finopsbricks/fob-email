@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: IN PROGRESS (~88%) — Phases 1–6 done (engine, `emails`/`folders` CRUD, D6 probe, `threads`, `drafts`); Phase 7 (config conformance) next
+## Status: IN PROGRESS (~93%) — Phases 1–7 done (full resource CLI + config conformance); Phase 8 (retire old shape + publish) next
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -360,10 +360,14 @@ Conversations are the object an FDE uses to trace a vendor exchange; **strategy 
       resource delegation, create/edit/delete/send handlers); `drafts` help walks; all 5 resources in
       the root tree.
 
-### Phase 7: Config conformance ❌
-- [ ] Reshape `src/cli/config/` to the blanket `profiles` object noun with `['accounts','profiles']`
-      alias; `accounts list` prints a table with the current-`*` marker and a `config: <path>` footer;
-      add `--json`. Confirm identity/capabilities caching + `refresh` conform.
+### Phase 7: Config conformance ✅
+- [x] `src/cli/config/` already lands the blanket `profiles` object noun with the `['profiles',
+      'accounts']` alias (both resolve), the current-`*` marker + `config: <path>` footer, `--json`, and
+      the PROVIDER column — built through Phase 4. Confirmed conformant; identity/capabilities caching +
+      `refresh` (now a full-profile re-probe) verified. Polished stale `add --verify` / `refresh`
+      descriptions to say "profile" not "mailbox address."
+- [x] **Verified:** `npm run typecheck` → 0 errors; tests **65/65**; `config accounts list` and
+      `config profiles list` both render with the footer.
 
 ### Phase 8: Retire the old shape + publish the breaking change ❌
 - [ ] Remove the top-level `list`/`read`/`filter` commands (now under `emails`); update

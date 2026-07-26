@@ -37,7 +37,7 @@ function buildProfilesSubcommands(yargs) {
           .option('smtp-pass', { describe: 'SMTP password (defaults to --imap-pass)', type: 'string' })
           .option('smtp-secure', { describe: 'Use TLS for SMTP', type: 'boolean', default: true })
           .option('verify', {
-            describe: 'Connect to verify creds and cache the mailbox address (--no-verify to skip)',
+            describe: 'Connect to verify creds and cache the account profile (--no-verify to skip)',
             type: 'boolean',
             default: true,
           }),
@@ -57,7 +57,7 @@ function buildProfilesSubcommands(yargs) {
     )
     .command(
       'refresh [name]',
-      "Re-resolve an account's mailbox address from the server (--all for every account)",
+      "Re-probe an account's profile — address, provider, thread strategy, folders (--all for every account)",
       (y) =>
         y
           .positional('name', { describe: 'Account name (omit with --all)', type: 'string' })
