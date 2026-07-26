@@ -45,6 +45,7 @@ export function fakeClient(canned = {}) {
   const calls = {
     list: [], search: [], get: [], download: [], mark: [], move: [], delete: [], send: [],
     threads: { list: [], show: [] },
+    drafts: { list: [], create: [], edit: [], delete: [], send: [] },
     folders: { list: [], create: [], rename: [], delete: [] },
     closed: 0,
   };
@@ -64,6 +65,13 @@ export function fakeClient(canned = {}) {
     threads: {
       list: async (opts) => (calls.threads.list.push(opts), ret(canned.threadsList, [])),
       show: async (id, opts) => (calls.threads.show.push({ id, opts }), ret(canned.thread, { id: String(id), messages: [] })),
+    },
+    drafts: {
+      list: async () => (calls.drafts.list.push(true), ret(canned.draftsList, { data: [], folder: 'Drafts' })),
+      create: async (m) => (calls.drafts.create.push(m), ret(canned.draftRef, { id: 10, folder: 'Drafts' })),
+      edit: async (id, m) => (calls.drafts.edit.push({ id, m }), ret(canned.draftRef, { id: 11, folder: 'Drafts' })),
+      delete: async (id) => (calls.drafts.delete.push(id), ret(canned.draftResult, { id, deleted: true })),
+      send: async (id) => (calls.drafts.send.push(id), ret(canned.sendResult, { messageId: '<d@x>', accepted: ['a@b.com'], rejected: [] })),
     },
     folders: {
       list: async () => (calls.folders.list.push(true), ret(canned.foldersList, [])),

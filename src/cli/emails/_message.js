@@ -16,6 +16,25 @@ function toArray(v) {
 }
 
 /**
+ * The shared compose option set (D3) — used by `emails send` and `drafts
+ * create/edit`, so the flag vocabulary is defined once.
+ * @param {any} y yargs
+ * @param {{ requireTo?: boolean }} [opts]
+ */
+export function composeOptions(y, { requireTo = true } = {}) {
+  return y
+    .option('account', { describe: 'Configured account name', type: 'string' })
+    .option('to', { describe: 'Recipient (repeatable)', type: 'string', array: true, demandOption: requireTo })
+    .option('cc', { describe: 'Cc (repeatable)', type: 'string', array: true })
+    .option('bcc', { describe: 'Bcc (repeatable)', type: 'string', array: true })
+    .option('subject', { describe: 'Subject', type: 'string' })
+    .option('body', { describe: 'Body text', type: 'string' })
+    .option('body-file', { describe: 'Read body from a file', type: 'string' })
+    .option('attach', { describe: 'Attach a file (repeatable)', type: 'string', array: true })
+    .option('json', { describe: 'Output raw JSON', type: 'boolean' });
+}
+
+/**
  * @param {any} argv
  * @returns {{ to: string[], cc?: string[], bcc?: string[], subject?: string, text?: string, attachments?: Array<{ path: string, filename: string }> }}
  */

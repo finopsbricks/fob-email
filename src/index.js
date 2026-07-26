@@ -3,6 +3,7 @@ import { createTransport } from './engine/transport.js';
 import { buildEmails } from './resources/emails.js';
 import { buildFolders } from './resources/folders.js';
 import { buildThreads } from './resources/threads.js';
+import { buildDrafts } from './resources/drafts.js';
 
 export { connectSession };
 export { filterEmails } from './domain/filter.js';
@@ -29,6 +30,7 @@ export function fobEmail(account) {
   return {
     emails: buildEmails(ctx),
     threads: buildThreads(ctx),
+    drafts: buildDrafts(ctx),
     folders: buildFolders(ctx),
     /** Tear down whichever connections were opened. */
     close: () => ctx.close(),

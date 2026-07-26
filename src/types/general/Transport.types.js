@@ -19,6 +19,11 @@
  * @property {(name: string, to: string) => Promise<any>} renameFolder
  * @property {(name: string) => Promise<any>} deleteFolder
  * @property {(message: object) => Promise<any>} send
+ * @property {() => Promise<{ data: any[], folder: string }>} listDrafts
+ * @property {(message: object) => Promise<any>} createDraft
+ * @property {(id: number, message: object) => Promise<any>} editDraft
+ * @property {(id: number) => Promise<any>} deleteDraft
+ * @property {(id: number) => Promise<any>} sendDraft
  * @property {() => Promise<void>} close
  */
 

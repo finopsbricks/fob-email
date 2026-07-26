@@ -1,5 +1,6 @@
 import { connectSession } from './imap.js';
 import { connectMailer } from './smtp.js';
+import { buildMime } from './mime.js';
 
 /**
  * The transport seam — `createTransport(account)` is the protocol analog of an
@@ -62,6 +63,29 @@ export function createTransport(account) {
     // -- send -----------------------------------------------------------------
     /** @param {object} message */
     send: async (message) => (await mailer()).send(message),
+
+    // -- drafts (compose lifecycle — spans IMAP APPEND + SMTP; MIME built here) -
+    /** @returns {Promise<{ data: any[], folder: string }>} */
+    listDrafts: async () => (await session()).listDrafts(),
+    /** @param {object} message */
+    createDraft: async (message) => (await session()).appendDraft(await buildMime(message)),
+    /** @param {number} id @param {object} message — append-new then delete-old (immutable IMAP) */
+    editDraft: async (id, message) => {
+      const s = await session();
+      const created = await s.appendDraft(await buildMime(message));
+      await s.deleteDraft(id);
+      return created;
+    },
+    /** @param {number} id */
+    deleteDraft: async (id) => (await session()).deleteDraft(id),
+    /** @param {number} id — fetch the draft's raw source, send it, then delete it */
+    sendDraft: async (id) => {
+      const s = await session();
+      const raw = await s.fetchDraftSource(id);
+      const result = await (await mailer()).send({ raw });
+      await s.deleteDraft(id);
+      return result;
+    },
 
     /** Tear down whichever connections were opened. */
     close: async () => {

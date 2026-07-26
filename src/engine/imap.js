@@ -1,7 +1,7 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { resolveAccount } from '../config.js';
-import { deriveProfile } from './capabilities.js';
+import { deriveProfile, mapSpecialFolders } from './capabilities.js';
 import { parseMessageIds, groupThreads, threadOf } from '../domain/threads.js';
 
 /**
@@ -63,6 +63,10 @@ export async function connectSession(account) {
     cfg.threadStrategy ||
     deriveProfile({ host: cfg.imap.host, capabilities: client.capabilities }).threadStrategy;
 
+  // The Drafts folder is a property of the account (D6): read the cached
+  // special-use path resolved at add/refresh; fall back to the conventional name.
+  const draftsFolder = () => (cfg.folders && cfg.folders.drafts) || 'Drafts';
+
   return {
     /**
      * The authenticated mailbox — the login user, confirmed by a successful
@@ -72,12 +76,16 @@ export async function connectSession(account) {
     identity: () => ({ address }),
 
     /**
-     * Probe the server's self-describing profile (D6): provider + thread
-     * strategy, derived from the CAPABILITY set (populated on connect — no extra
-     * round-trips) and the host. Deterministic; `config accounts add`/`refresh`
-     * cache the result so runtime never re-probes.
+     * Probe the server's self-describing profile (D6): provider + thread strategy
+     * (from the CAPABILITY set, free after connect) + special-use folders (one
+     * `LIST` — the Drafts path drafts APPEND to). Deterministic; `config accounts
+     * add`/`refresh` cache the result so runtime never re-probes.
      */
-    probe: () => deriveProfile({ host: cfg.imap.host, capabilities: client.capabilities, address }),
+    probe: async () => {
+      const base = deriveProfile({ host: cfg.imap.host, capabilities: client.capabilities, address });
+      const folders = mapSpecialFolders(await client.list());
+      return { ...base, folders };
+    },
 
     /**
      * List envelopes (newest first). Returns the folder's current `uidValidity`
@@ -197,6 +205,38 @@ export async function connectSession(account) {
         const group = threadOf(nodes, Number(id));
         const chosen = group.length ? group : nodes.filter((n) => n.id === Number(id));
         return { id: String(id), messages: chosen.map((n) => n.envelope) };
+      }),
+
+    // -- drafts (the Drafts folder; IMAP messages are immutable, so `edit` is
+    //    append-new + delete-old at the resource layer) -----------------------
+    /** Envelopes in the Drafts folder. */
+    listDrafts: () =>
+      withFolder(draftsFolder(), null, async (c) => ({
+        data: await fetchEnvelopes(c, { all: true }, 100),
+        folder: draftsFolder(),
+      })),
+
+    /** APPEND a raw RFC 822 message to the Drafts folder with the \\Draft flag. */
+    appendDraft: async (raw) => {
+      const folder = draftsFolder();
+      const res = await client.append(folder, raw, ['\\Draft']);
+      return { id: res?.uid ?? null, folder, uidValidity: res?.uidValidity ?? null };
+    },
+
+    /** Delete a draft by id. */
+    deleteDraft: (id) =>
+      withFolder(draftsFolder(), null, async (c) => {
+        const ok = await c.messageDelete(id, { uid: true });
+        if (!ok) throw new Error(`Draft not found: ${id}`);
+        return { id, deleted: true };
+      }),
+
+    /** Raw source of a draft (for send). */
+    fetchDraftSource: (id) =>
+      withFolder(draftsFolder(), null, async (c) => {
+        const msg = await c.fetchOne(id, { uid: true, source: true }, { uid: true });
+        if (!msg) throw new Error(`Draft not found: ${id}`);
+        return msg.source;
       }),
 
     /** List folders with basic metadata. */

@@ -1,6 +1,6 @@
 # Adopt the Resource-Based CLI Pattern for `fob-email`
 
-## Status: IN PROGRESS (~78%) — Phases 1–5 done (engine, `emails`/`folders` CRUD, D6 probe, `threads`); Phase 6 (`drafts`) next
+## Status: IN PROGRESS (~88%) — Phases 1–6 done (engine, `emails`/`folders` CRUD, D6 probe, `threads`, `drafts`); Phase 7 (config conformance) next
 
 Reshape `fob-email` from a flat, protocol-flavoured command set (`list`, `read`, `filter`) into a
 **resource/action grammar over user-facing objects** — `emails`, `threads`, `folders`, `drafts`,
@@ -343,13 +343,22 @@ Conversations are the object an FDE uses to trace a vendor exchange; **strategy 
 - [x] **Verified:** `npm run typecheck` → 0 errors; tests **59/59** (7 new: parse/group/threadOf,
       resource delegation, list+show output, `--json`); `threads` help walks.
 
-### Phase 6: `drafts` resource (compose lifecycle) ❌
-- [ ] Engine: `APPEND` to the profile's cached **Drafts folder** (D6) + draft update/delete; `send`
-      bridges to `src/engine/smtp.js`.
-- [ ] `src/types/domain/Draft.types.js` + `src/resources/drafts.js` (`buildDrafts(ctx)`:
+### Phase 6: `drafts` resource (compose lifecycle) ✅
+- [x] **Probe extension (deferred from Phase 4):** `mapSpecialFolders` (pure) + `probe()` now runs one
+      `LIST` and caches special-use folder paths (`drafts`/`sent`/`trash`/`junk`/`all`) on the profile;
+      `AccountSchema`/`setAccountProfile`/`resolveAccount`/`listAccounts` carry `folders`.
+- [x] Engine: `src/engine/mime.js` `buildMime` (nodemailer MailComposer → raw RFC 822); session
+      `appendDraft` (`APPEND` to the cached Drafts folder + `\\Draft`), `listDrafts`, `deleteDraft`,
+      `fetchDraftSource`; `Mailer.send` accepts a raw buffer. `ctx` composes `createDraft`/`editDraft`
+      (append-new + delete-old) / `deleteDraft` / `sendDraft` (fetch raw → SMTP → delete).
+- [x] `src/types/domain/Draft.types.js` (`DraftRef`) + `src/resources/drafts.js` (`buildDrafts(ctx)`:
       `list`, `create`, `edit`, `delete`, `send`) wired into `fobEmail`.
-- [ ] `src/cli/drafts/*` handlers. **D3 —** `create`/`edit`/`send` reuse the Phase-3 shared builder
-      (`src/cli/emails/_message.js`), so one-shot send and draft-send share body/attachment assembly.
+- [x] `src/cli/drafts/*` handlers. **D3 —** `create`/`edit` reuse `buildMessage` + `composeOptions`
+      (promoted into `src/cli/emails/_message.js` and shared with `emails send`). `edit` replaces
+      wholesale (append-new + delete-old → new id); `delete` guarded with `--yes`.
+- [x] **Verified:** `npm run typecheck` → 0 errors; tests **65/65** (6 new: special-folder mapping,
+      resource delegation, create/edit/delete/send handlers); `drafts` help walks; all 5 resources in
+      the root tree.
 
 ### Phase 7: Config conformance ❌
 - [ ] Reshape `src/cli/config/` to the blanket `profiles` object noun with `['accounts','profiles']`

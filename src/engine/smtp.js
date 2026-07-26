@@ -39,7 +39,10 @@ export async function connectMailer(account) {
      * message-builder: { to, cc, bcc, subject, text, html, attachments }.
      */
     send: async (message) => {
-      const info = await transport.sendMail({ from: message.from || user, ...message });
+      // A stored draft is sent as its raw RFC 822 source; a composed message is
+      // sent field-by-field with the account's from filled in.
+      const payload = message.raw ? { raw: message.raw } : { from: message.from || user, ...message };
+      const info = await transport.sendMail(payload);
       return {
         messageId: info.messageId ?? null,
         accepted: (info.accepted ?? []).map(String),

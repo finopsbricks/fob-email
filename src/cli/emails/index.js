@@ -9,6 +9,7 @@ import { moveEmailHandler } from './move.js';
 import { deleteEmailHandler } from './delete.js';
 import { sendEmailHandler } from './send.js';
 import { filterHandler } from './filter.js';
+import { composeOptions } from './_message.js';
 
 /** Options shared by every id-targeting action (`--folder` enforces D4). */
 const idOptions = (y) =>
@@ -16,19 +17,6 @@ const idOptions = (y) =>
     .positional('id', { describe: 'Message id (per-folder UID)', type: 'number' })
     .option('account', { describe: 'Configured account name', type: 'string' })
     .option('folder', { describe: 'Mailbox folder', type: 'string', default: 'INBOX' })
-    .option('json', { describe: 'Output raw JSON', type: 'boolean' });
-
-/** Compose flags shared by `send` (and later `drafts`) — the D3 builder reads these. */
-const composeOptions = (y) =>
-  y
-    .option('account', { describe: 'Configured account name', type: 'string' })
-    .option('to', { describe: 'Recipient (repeatable)', type: 'string', array: true, demandOption: true })
-    .option('cc', { describe: 'Cc (repeatable)', type: 'string', array: true })
-    .option('bcc', { describe: 'Bcc (repeatable)', type: 'string', array: true })
-    .option('subject', { describe: 'Subject', type: 'string' })
-    .option('body', { describe: 'Body text', type: 'string' })
-    .option('body-file', { describe: 'Read body from a file', type: 'string' })
-    .option('attach', { describe: 'Attach a file (repeatable)', type: 'string', array: true })
     .option('json', { describe: 'Output raw JSON', type: 'boolean' });
 
 /**

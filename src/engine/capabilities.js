@@ -72,3 +72,27 @@ export function deriveProfile({ host = '', capabilities, address = null } = {}) 
     threadStrategy: deriveThreadStrategy(caps),
   };
 }
+
+/** SPECIAL-USE flag → our folder role key. */
+const SPECIAL_USE = {
+  '\\Drafts': 'drafts',
+  '\\Sent': 'sent',
+  '\\Trash': 'trash',
+  '\\Junk': 'junk',
+  '\\All': 'all',
+};
+
+/**
+ * Map a folder listing to special-use folder paths (Phase 6). Pure — the caller
+ * supplies the boxes (`{ path, specialUse }`) from a `LIST`.
+ * @param {Array<{ path: string, specialUse?: string|null }>} boxes
+ * @returns {{ drafts: string|null, sent: string|null, trash: string|null, junk: string|null, all: string|null }}
+ */
+export function mapSpecialFolders(boxes = []) {
+  const folders = { drafts: null, sent: null, trash: null, junk: null, all: null };
+  for (const b of boxes) {
+    const role = b.specialUse && SPECIAL_USE[b.specialUse];
+    if (role && !folders[role]) folders[role] = b.path;
+  }
+  return folders;
+}
