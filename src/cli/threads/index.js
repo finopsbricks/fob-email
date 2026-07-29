@@ -1,5 +1,5 @@
 // @ts-check
-import { safe } from '../_helpers.js';
+import { safe, localOptions } from '../_helpers.js';
 import { listThreadsHandler } from './list.js';
 import { showThreadHandler } from './show.js';
 
@@ -14,7 +14,7 @@ export function buildThreadsSubcommands(yargs) {
       'list',
       'List conversations in a folder (newest activity first)',
       (y) =>
-        y
+        localOptions(y)
           .option('account', { describe: 'Configured account name', type: 'string' })
           .option('folder', { describe: 'Mailbox folder', type: 'string', default: 'INBOX' })
           .option('limit', { describe: 'Max threads', type: 'number', default: 50 })
@@ -25,8 +25,7 @@ export function buildThreadsSubcommands(yargs) {
       'show <id>',
       'Show the full conversation containing a message',
       (y) =>
-        y
-          .positional('id', { describe: 'Message id (per-folder UID)', type: 'number' })
+        localOptions(y.positional('id', { describe: 'Message id (per-folder UID)', type: 'number' }))
           .option('account', { describe: 'Configured account name', type: 'string' })
           .option('folder', { describe: 'Mailbox folder', type: 'string', default: 'INBOX' })
           .option('json', { describe: 'Output raw JSON', type: 'boolean' }),

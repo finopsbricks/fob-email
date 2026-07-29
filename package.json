@@ -1,6 +1,6 @@
 {
   "name": "@fob/email",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Resource-based email CLI + importable client over IMAP/SMTP (emails, threads, drafts, folders).",
   "type": "module",
   "main": "src/index.js",

@@ -1,4 +1,4 @@
-import { safe } from '../_helpers.js';
+import { safe, localOptions } from '../_helpers.js';
 import { listConfigHandler } from './list.js';
 import { addConfigHandler } from './add.js';
 import { useConfigHandler } from './use.js';
@@ -17,15 +17,14 @@ function buildProfilesSubcommands(yargs) {
     .command(
       'list',
       'List accounts (current marked with *)',
-      (y) => y.option('json', { describe: 'Output raw JSON', type: 'boolean' }),
+      (y) => localOptions(y).option('json', { describe: 'Output raw JSON', type: 'boolean' }),
       safe(listConfigHandler),
     )
     .command(
       'add <name>',
       "Add or update an account's IMAP/SMTP credentials",
       (y) =>
-        y
-          .positional('name', { describe: 'Account name', type: 'string' })
+        localOptions(y.positional('name', { describe: 'Account name', type: 'string' }))
           .option('imap-host', { describe: 'IMAP host', type: 'string', demandOption: true })
           .option('imap-port', { describe: 'IMAP port', type: 'number', default: 993 })
           .option('imap-user', { describe: 'IMAP username', type: 'string', demandOption: true })
@@ -59,8 +58,7 @@ function buildProfilesSubcommands(yargs) {
       'refresh [name]',
       "Re-probe an account's profile — address, provider, thread strategy, folders (--all for every account)",
       (y) =>
-        y
-          .positional('name', { describe: 'Account name (omit with --all)', type: 'string' })
+        localOptions(y.positional('name', { describe: 'Account name (omit with --all)', type: 'string' }))
           .option('all', { describe: 'Refresh every account', type: 'boolean' }),
       safe(refreshConfigHandler),
     )

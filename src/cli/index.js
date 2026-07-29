@@ -34,5 +34,9 @@ export function run(argv) {
     .alias('h', 'help')
     .version()
     .alias('v', 'version')
+    // Global options (inherited by every command) render under their own
+    // heading; each command's own options stay under "Options:", shown first
+    // via localOptions() in the command builders.
+    .group(['help', 'version'], 'Global Options:')
     .parse();
 }

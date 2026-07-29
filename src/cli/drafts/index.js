@@ -1,5 +1,5 @@
 // @ts-check
-import { safe } from '../_helpers.js';
+import { safe, localOptions } from '../_helpers.js';
 import { composeOptions } from '../emails/_message.js';
 import { listDraftsHandler } from './list.js';
 import { createDraftHandler } from './create.js';
@@ -8,8 +8,7 @@ import { deleteDraftHandler } from './delete.js';
 import { sendDraftHandler } from './send.js';
 
 const idOnly = (y) =>
-  y
-    .positional('id', { describe: 'Draft id (per-folder UID)', type: 'number' })
+  localOptions(y.positional('id', { describe: 'Draft id (per-folder UID)', type: 'number' }))
     .option('account', { describe: 'Configured account name', type: 'string' })
     .option('json', { describe: 'Output raw JSON', type: 'boolean' });
 
@@ -25,7 +24,7 @@ export function buildDraftsSubcommands(yargs) {
       'list',
       'List saved drafts',
       (y) =>
-        y
+        localOptions(y)
           .option('account', { describe: 'Configured account name', type: 'string' })
           .option('json', { describe: 'Output raw JSON', type: 'boolean' }),
       safe(listDraftsHandler),

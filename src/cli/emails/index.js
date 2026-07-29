@@ -1,5 +1,5 @@
 // @ts-check
-import { safe } from '../_helpers.js';
+import { safe, localOptions } from '../_helpers.js';
 import { listEmailsHandler } from './list.js';
 import { searchEmailsHandler } from './search.js';
 import { showEmailHandler } from './show.js';
@@ -13,8 +13,7 @@ import { composeOptions } from './_message.js';
 
 /** Options shared by every id-targeting action (`--folder` enforces D4). */
 const idOptions = (y) =>
-  y
-    .positional('id', { describe: 'Message id (per-folder UID)', type: 'number' })
+  localOptions(y.positional('id', { describe: 'Message id (per-folder UID)', type: 'number' }))
     .option('account', { describe: 'Configured account name', type: 'string' })
     .option('folder', { describe: 'Mailbox folder', type: 'string', default: 'INBOX' })
     .option('json', { describe: 'Output raw JSON', type: 'boolean' });
@@ -29,7 +28,7 @@ export function buildEmailsSubcommands(yargs) {
       'list',
       'List emails in a folder (newest first)',
       (y) =>
-        y
+        localOptions(y)
           .option('account', { describe: 'Configured account name', type: 'string' })
           .option('folder', { describe: 'Mailbox folder', type: 'string', default: 'INBOX' })
           .option('unseen', { describe: 'Only unread messages', type: 'boolean' })
@@ -42,8 +41,7 @@ export function buildEmailsSubcommands(yargs) {
       'search [query]',
       'Search a folder (IMAP SEARCH — keyword/header/date, not semantic)',
       (y) =>
-        y
-          .positional('query', { describe: 'Text to match (headers + body)', type: 'string' })
+        localOptions(y.positional('query', { describe: 'Text to match (headers + body)', type: 'string' }))
           .option('account', { describe: 'Configured account name', type: 'string' })
           .option('folder', { describe: 'Mailbox folder', type: 'string', default: 'INBOX' })
           .option('from', { describe: 'Match sender', type: 'string' })
@@ -87,7 +85,7 @@ export function buildEmailsSubcommands(yargs) {
       'filter',
       'Filter an envelopes JSON array from stdin (pure, no connection)',
       (y) =>
-        y
+        localOptions(y)
           .option('from', { describe: 'Substring match on From', type: 'string' })
           .option('to', { describe: 'Substring match on To', type: 'string' })
           .option('subject', { describe: 'Substring match on Subject', type: 'string' })

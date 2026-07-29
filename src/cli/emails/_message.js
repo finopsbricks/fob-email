@@ -8,6 +8,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
+import { localOptions } from '../_helpers.js';
 
 /** @param {any} v @returns {string[]} */
 function toArray(v) {
@@ -22,7 +23,7 @@ function toArray(v) {
  * @param {{ requireTo?: boolean }} [opts]
  */
 export function composeOptions(y, { requireTo = true } = {}) {
-  return y
+  return localOptions(y)
     .option('account', { describe: 'Configured account name', type: 'string' })
     .option('to', { describe: 'Recipient (repeatable)', type: 'string', array: true, demandOption: requireTo })
     .option('cc', { describe: 'Cc (repeatable)', type: 'string', array: true })
