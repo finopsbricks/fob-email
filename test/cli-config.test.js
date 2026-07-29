@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, expect } from '@jest/globals';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,15 +43,15 @@ test('add stores account; list shows it with the current marker and a config foo
     verify: false, // don't hit the network in unit tests
   });
   const out = capture(() => listConfigHandler({}));
-  assert.match(out, /\*\s+gmail\s+imap\.gmail\.com:993\s+smtp\.gmail\.com:465/);
-  assert.match(out, /\(\* = current\)\s+config: /);
+  expect(out).toMatch(/\*\s+gmail\s+imap\.gmail\.com:993\s+smtp\.gmail\.com:465/);
+  expect(out).toMatch(/\(\* = current\)\s+config: /);
 });
 
 test('list never prints the password (table or json)', () => {
   const table = capture(() => listConfigHandler({}));
   const json = capture(() => listConfigHandler({ json: true }));
-  assert.ok(!table.includes('app-pw'));
-  assert.ok(!json.includes('app-pw'));
+  expect(table.includes('app-pw')).toBeFalsy();
+  expect(json.includes('app-pw')).toBeFalsy();
 });
 
 test('smtp user/pass default to the imap ones when omitted', () => {
@@ -61,17 +60,17 @@ test('smtp user/pass default to the imap ones when omitted', () => {
   const out = capture(() => listConfigHandler({ json: true }));
   const { accounts } = JSON.parse(out);
   const work = accounts.find((a) => a.name === 'work');
-  assert.equal(work.smtp, null);
+  expect(work.smtp).toBe(null);
 });
 
 test('use switches current; remove reassigns it', () => {
   capture(() => useConfigHandler({ name: 'work' }));
   let out = capture(() => listConfigHandler({ json: true }));
-  assert.equal(JSON.parse(out).current, 'work');
+  expect(JSON.parse(out).current).toBe('work');
 
   capture(() => removeConfigHandler({ name: 'work' }));
   out = capture(() => listConfigHandler({ json: true }));
-  assert.equal(JSON.parse(out).current, 'gmail');
+  expect(JSON.parse(out).current).toBe('gmail');
 });
 
 test('cached identity (decision G) shows an ADDRESS column and is non-secret', () => {
@@ -79,9 +78,9 @@ test('cached identity (decision G) shows an ADDRESS column and is non-secret', (
   setAccountIdentity('gmail', { address: 'me@gmail.com' });
 
   const table = capture(() => listConfigHandler({}));
-  assert.match(table, /ADDRESS/);
-  assert.match(table, /me@gmail\.com/);
+  expect(table).toMatch(/ADDRESS/);
+  expect(table).toMatch(/me@gmail\.com/);
 
   const { accounts } = JSON.parse(capture(() => listConfigHandler({ json: true })));
-  assert.equal(accounts.find((a) => a.name === 'gmail').address, 'me@gmail.com');
+  expect(accounts.find((a) => a.name === 'gmail').address).toBe('me@gmail.com');
 });

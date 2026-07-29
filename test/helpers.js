@@ -1,7 +1,8 @@
 /**
  * Test harness for CLI handlers: capture stdout/stderr and turn process.exit
  * into a throw so a handler that exits halts and the test can assert on it.
- * The node:test analog of the standard's Jest `captureOutput()`.
+ * The standard's Jest `captureOutput()` helper (see engineering-standards
+ * `cli/testing.md`).
  */
 
 export class ExitError extends Error {

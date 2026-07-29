@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, expect } from '@jest/globals';
 
 import { buildEmails } from '../src/resources/emails.js';
 import { searchEmailsHandler } from '../src/cli/emails/search.js';
@@ -27,11 +26,11 @@ test('buildEmails mutations map to the right ctx ops', async () => {
   await emails.delete(5, { folder: 'INBOX' });
   await emails.download(5, { folder: 'INBOX' });
   await emails.send({ to: ['a@b.com'] });
-  assert.deepEqual(seen.setFlag, { id: 5, flag: '\\Seen', on: true, folder: 'INBOX' });
-  assert.deepEqual(seen.move, { id: 5, to: 'Archive', folder: 'INBOX' });
-  assert.deepEqual(seen.expunge, { id: 5, folder: 'INBOX' });
-  assert.deepEqual(seen.fetchAttachments, { id: 5, folder: 'INBOX' });
-  assert.deepEqual(seen.send, { to: ['a@b.com'] });
+  expect(seen.setFlag).toEqual({ id: 5, flag: '\\Seen', on: true, folder: 'INBOX' });
+  expect(seen.move).toEqual({ id: 5, to: 'Archive', folder: 'INBOX' });
+  expect(seen.expunge).toEqual({ id: 5, folder: 'INBOX' });
+  expect(seen.fetchAttachments).toEqual({ id: 5, folder: 'INBOX' });
+  expect(seen.send).toEqual({ to: ['a@b.com'] });
 });
 
 // -- search --------------------------------------------------------------------
@@ -45,19 +44,18 @@ test('searchEmailsHandler builds criteria from flags', async () => {
     out.restore();
   }
   const opts = client.calls.search[0];
-  assert.equal(opts.criteria.text, 'invoice');
-  assert.equal(opts.criteria.from, 'aws');
-  assert.ok(opts.criteria.since instanceof Date);
+  expect(opts.criteria.text).toBe('invoice');
+  expect(opts.criteria.from).toBe('aws');
+  expect(opts.criteria.since instanceof Date).toBeTruthy();
 });
 
 test('searchEmailsHandler rejects a bad --since', async () => {
   const out = captureOutput();
   const client = fakeClient();
   try {
-    await assert.rejects(
+    await expect(
       () => searchEmailsHandler({ since: '07/01/2026' }, client),
-      /--since must be in YYYY-MM-DD/,
-    );
+    ).rejects.toThrow(/--since must be in YYYY-MM-DD/);
   } finally {
     out.restore();
   }
@@ -69,8 +67,8 @@ test('markEmailHandler requires exactly one of --read/--unread', async () => {
   const out = captureOutput();
   const client = fakeClient();
   try {
-    await assert.rejects(() => markEmailHandler({ id: 1, read: true, unread: true }, client), /exactly one/);
-    await assert.rejects(() => markEmailHandler({ id: 1 }, client), /exactly one/);
+    await expect(() => markEmailHandler({ id: 1, read: true, unread: true }, client)).rejects.toThrow(/exactly one/);
+    await expect(() => markEmailHandler({ id: 1 }, client)).rejects.toThrow(/exactly one/);
   } finally {
     out.restore();
   }
@@ -84,9 +82,9 @@ test('markEmailHandler --read marks seen and closes', async () => {
   } finally {
     out.restore();
   }
-  assert.deepEqual(client.calls.mark[0], { id: 1423, seen: true, opts: { folder: 'INBOX' } });
-  assert.match(out.stdout, /Marked #1423 as read/);
-  assert.equal(client.calls.closed, 1);
+  expect(client.calls.mark[0]).toEqual({ id: 1423, seen: true, opts: { folder: 'INBOX' } });
+  expect(out.stdout).toMatch(/Marked #1423 as read/);
+  expect(client.calls.closed).toBe(1);
 });
 
 test('moveEmailHandler passes destination', async () => {
@@ -97,19 +95,19 @@ test('moveEmailHandler passes destination', async () => {
   } finally {
     out.restore();
   }
-  assert.deepEqual(client.calls.move[0], { id: 1423, to: 'Archive', opts: { folder: 'INBOX' } });
-  assert.match(out.stdout, /Moved #1423 from INBOX to Archive/);
+  expect(client.calls.move[0]).toEqual({ id: 1423, to: 'Archive', opts: { folder: 'INBOX' } });
+  expect(out.stdout).toMatch(/Moved #1423 from INBOX to Archive/);
 });
 
 test('deleteEmailHandler refuses without --yes', async () => {
   const out = captureOutput();
   const client = fakeClient();
   try {
-    await assert.rejects(() => deleteEmailHandler({ id: 1423 }, client), /Refusing to delete/);
+    await expect(() => deleteEmailHandler({ id: 1423 }, client)).rejects.toThrow(/Refusing to delete/);
   } finally {
     out.restore();
   }
-  assert.equal(client.calls.delete.length, 0);
+  expect(client.calls.delete.length).toBe(0);
 });
 
 test('deleteEmailHandler deletes with --yes', async () => {
@@ -120,26 +118,26 @@ test('deleteEmailHandler deletes with --yes', async () => {
   } finally {
     out.restore();
   }
-  assert.deepEqual(client.calls.delete[0], { id: 1423, opts: { folder: 'INBOX' } });
-  assert.match(out.stdout, /Deleted #1423/);
+  expect(client.calls.delete[0]).toEqual({ id: 1423, opts: { folder: 'INBOX' } });
+  expect(out.stdout).toMatch(/Deleted #1423/);
 });
 
 // -- message builder + send ----------------------------------------------------
 
 test('buildMessage normalizes flags (repeatable to/attach)', () => {
   const msg = buildMessage({ to: ['a@b.com', 'c@d.com'], subject: 'Hi', body: 'yo', attach: ['/tmp/x.pdf'] });
-  assert.deepEqual(msg.to, ['a@b.com', 'c@d.com']);
-  assert.equal(msg.subject, 'Hi');
-  assert.equal(msg.text, 'yo');
-  assert.deepEqual(msg.attachments, [{ path: '/tmp/x.pdf', filename: 'x.pdf' }]);
+  expect(msg.to).toEqual(['a@b.com', 'c@d.com']);
+  expect(msg.subject).toBe('Hi');
+  expect(msg.text).toBe('yo');
+  expect(msg.attachments).toEqual([{ path: '/tmp/x.pdf', filename: 'x.pdf' }]);
 });
 
 test('buildMessage rejects --body + --body-file together', () => {
-  assert.throws(() => buildMessage({ to: ['a@b.com'], body: 'x', bodyFile: '/f' }), /only one of --body/);
+  expect(() => buildMessage({ to: ['a@b.com'], body: 'x', bodyFile: '/f' })).toThrow(/only one of --body/);
 });
 
 test('buildMessage requires --to', () => {
-  assert.throws(() => buildMessage({ subject: 'x' }), /--to <address> is required/);
+  expect(() => buildMessage({ subject: 'x' })).toThrow(/--to <address> is required/);
 });
 
 test('sendEmailHandler sends the built message and reports', async () => {
@@ -150,6 +148,6 @@ test('sendEmailHandler sends the built message and reports', async () => {
   } finally {
     out.restore();
   }
-  assert.equal(client.calls.send[0].to[0], 'a@b.com');
-  assert.match(out.stdout, /Sent to a@b\.com \(<id@x>\)/);
+  expect(client.calls.send[0].to[0]).toBe('a@b.com');
+  expect(out.stdout).toMatch(/Sent to a@b\.com \(<id@x>\)/);
 });

@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, expect } from '@jest/globals';
 import { mkdtempSync, statSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,45 +18,45 @@ const gmail = {
 };
 
 test('CONFIG_PATH resolves under FOB_EMAIL_CONFIG_DIR', () => {
-  assert.equal(cfg.CONFIG_PATH, join(dir, 'config.yml'));
+  expect(cfg.CONFIG_PATH).toBe(join(dir, 'config.yml'));
 });
 
 test('addAccount writes config.yml at mode 0600 and sets first account current', () => {
   cfg.addAccount('gmail', gmail);
-  assert.ok(existsSync(cfg.CONFIG_PATH));
-  assert.equal(statSync(cfg.CONFIG_PATH).mode & 0o777, 0o600);
-  assert.equal(cfg.loadConfig().current, 'gmail');
+  expect(existsSync(cfg.CONFIG_PATH)).toBe(true);
+  expect(statSync(cfg.CONFIG_PATH).mode & 0o777).toBe(0o600);
+  expect(cfg.loadConfig().current).toBe('gmail');
 });
 
 test('resolveAccount returns imap/smtp with pass for the current account', () => {
   const a = cfg.resolveAccount();
-  assert.equal(a.imap.host, 'imap.gmail.com');
-  assert.equal(a.imap.pass, 'app-pw');
-  assert.equal(a.smtp.host, 'smtp.gmail.com');
+  expect(a.imap.host).toBe('imap.gmail.com');
+  expect(a.imap.pass).toBe('app-pw');
+  expect(a.smtp.host).toBe('smtp.gmail.com');
 });
 
 test('listAccounts returns metadata only — never the password', () => {
   const { current, accounts } = cfg.listAccounts();
-  assert.equal(current, 'gmail');
-  assert.equal(accounts.length, 1);
-  assert.equal(accounts[0].imap.host, 'imap.gmail.com');
-  assert.ok(!('pass' in accounts[0].imap));
-  assert.ok(!JSON.stringify(accounts).includes('app-pw'));
+  expect(current).toBe('gmail');
+  expect(accounts.length).toBe(1);
+  expect(accounts[0].imap.host).toBe('imap.gmail.com');
+  expect('pass' in accounts[0].imap).toBe(false);
+  expect(JSON.stringify(accounts).includes('app-pw')).toBe(false);
 });
 
 test('useAccount switches current; unknown name throws', () => {
   cfg.addAccount('work', { imap: { host: 'mail.work.com', port: 993, user: 'a@work.com', pass: 'pw', tls: true } });
   cfg.useAccount('work');
-  assert.equal(cfg.loadConfig().current, 'work');
-  assert.throws(() => cfg.useAccount('nope'), /No account named 'nope'/);
+  expect(cfg.loadConfig().current).toBe('work');
+  expect(() => cfg.useAccount('nope')).toThrow(/No account named 'nope'/);
 });
 
 test('removeAccount reassigns current when removing the active account', () => {
   cfg.removeAccount('work');
-  assert.equal(cfg.loadConfig().current, 'gmail');
+  expect(cfg.loadConfig().current).toBe('gmail');
   // secret is not lingering in some stale copy — file still parses and stays 0600
-  assert.equal(statSync(cfg.CONFIG_PATH).mode & 0o777, 0o600);
-  assert.ok(readFileSync(cfg.CONFIG_PATH, 'utf8').includes('current: gmail'));
+  expect(statSync(cfg.CONFIG_PATH).mode & 0o777).toBe(0o600);
+  expect(readFileSync(cfg.CONFIG_PATH, 'utf8').includes('current: gmail')).toBe(true);
 });
 
 test('precedence: FOB_EMAIL_ACCOUNTS env selects by name and beats config for the default', () => {
@@ -66,10 +65,10 @@ test('precedence: FOB_EMAIL_ACCOUNTS env selects by name and beats config for th
     envbox: { imap: { host: 'imap.env.com', port: 993, user: 'e@env.com', pass: 'envpw', tls: true } },
   });
   try {
-    assert.equal(cfg.resolveAccount('envbox').imap.host, 'imap.env.com'); // named from env
-    assert.equal(cfg.resolveAccount().imap.host, 'imap.env.com'); // no name → env beats config current
+    expect(cfg.resolveAccount('envbox').imap.host).toBe('imap.env.com'); // named from env
+    expect(cfg.resolveAccount().imap.host).toBe('imap.env.com'); // no name → env beats config current
   } finally {
     delete process.env.FOB_EMAIL_ACCOUNTS;
   }
-  assert.equal(cfg.resolveAccount().imap.host, 'imap.gmail.com'); // env gone → config current
+  expect(cfg.resolveAccount().imap.host).toBe('imap.gmail.com'); // env gone → config current
 });

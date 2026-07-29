@@ -3,3 +3,5 @@ node_modules/
 .env.*
 downloads/
 *.log
+coverage/
+junit.xml

@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, expect } from '@jest/globals';
 
 import { parseMessageIds, groupThreads, threadOf } from '../src/domain/threads.js';
 import { buildThreads } from '../src/resources/threads.js';
@@ -10,9 +9,9 @@ import { captureOutput, fakeClient } from './helpers.js';
 // -- pure grouping (the reconstruct core) --------------------------------------
 
 test('parseMessageIds extracts <...> tokens', () => {
-  assert.deepEqual(parseMessageIds('<a@x> <b@y>'), ['<a@x>', '<b@y>']);
-  assert.deepEqual(parseMessageIds(null), []);
-  assert.deepEqual(parseMessageIds('none'), []);
+  expect(parseMessageIds('<a@x> <b@y>')).toEqual(['<a@x>', '<b@y>']);
+  expect(parseMessageIds(null)).toEqual([]);
+  expect(parseMessageIds('none')).toEqual([]);
 });
 
 test('groupThreads links a reply chain and separates unrelated mail', () => {
@@ -23,9 +22,9 @@ test('groupThreads links a reply chain and separates unrelated mail', () => {
     { id: 9, messageId: '<other@y>', refs: [], date: '2026-07-01T00:00:00Z' },
   ];
   const groups = groupThreads(nodes);
-  assert.equal(groups.length, 2);
+  expect(groups.length).toBe(2);
   const big = groups.find((g) => g.length === 3);
-  assert.deepEqual(big.map((n) => n.id), [1, 2, 3]); // sorted oldest→newest
+  expect(big.map((n) => n.id)).toEqual([1, 2, 3]); // sorted oldest→newest
 });
 
 test('threadOf returns the conversation containing the target, oldest→newest', () => {
@@ -33,8 +32,8 @@ test('threadOf returns the conversation containing the target, oldest→newest',
     { id: 2, messageId: '<reply@x>', refs: ['<root@x>'], date: '2026-07-02T00:00:00Z' },
     { id: 1, messageId: '<root@x>', refs: [], date: '2026-07-01T00:00:00Z' },
   ];
-  assert.deepEqual(threadOf(nodes, 2).map((n) => n.id), [1, 2]);
-  assert.deepEqual(threadOf(nodes, 999), []);
+  expect(threadOf(nodes, 2).map((n) => n.id)).toEqual([1, 2]);
+  expect(threadOf(nodes, 999)).toEqual([]);
 });
 
 // -- resource delegation -------------------------------------------------------
@@ -44,7 +43,7 @@ test('buildThreads.show maps (id, opts) → ctx.resolveThread', async () => {
   const ctx = { resolveThread: async (a) => (seen.push(a), { id: 't', messages: [] }), listThreads: async () => [] };
   const threads = buildThreads(ctx);
   await threads.show(5, { folder: 'INBOX' });
-  assert.deepEqual(seen[0], { id: 5, folder: 'INBOX' });
+  expect(seen[0]).toEqual({ id: 5, folder: 'INBOX' });
 });
 
 // -- handlers ------------------------------------------------------------------
@@ -61,9 +60,9 @@ test('listThreadsHandler renders a summary table', async () => {
   } finally {
     out.restore();
   }
-  assert.match(out.stdout, /LATEST\s+MSGS\s+SUBJECT\s+DATE/);
-  assert.match(out.stdout, /Invoice thread/);
-  assert.equal(client.calls.closed, 1);
+  expect(out.stdout).toMatch(/LATEST\s+MSGS\s+SUBJECT\s+DATE/);
+  expect(out.stdout).toMatch(/Invoice thread/);
+  expect(client.calls.closed).toBe(1);
 });
 
 test('showThreadHandler prints a conversation table and delegates', async () => {
@@ -82,9 +81,9 @@ test('showThreadHandler prints a conversation table and delegates', async () => 
   } finally {
     out.restore();
   }
-  assert.match(out.stdout, /Thread <root@x> \(2 messages\)/);
-  assert.match(out.stdout, /a@x/);
-  assert.deepEqual(client.calls.threads.show[0], { id: 1, opts: { folder: 'INBOX' } });
+  expect(out.stdout).toMatch(/Thread <root@x> \(2 messages\)/);
+  expect(out.stdout).toMatch(/a@x/);
+  expect(client.calls.threads.show[0]).toEqual({ id: 1, opts: { folder: 'INBOX' } });
 });
 
 test('showThreadHandler --json emits the raw thread', async () => {
@@ -95,5 +94,5 @@ test('showThreadHandler --json emits the raw thread', async () => {
   } finally {
     out.restore();
   }
-  assert.equal(JSON.parse(out.stdout).id, 't1');
+  expect(JSON.parse(out.stdout).id).toBe('t1');
 });

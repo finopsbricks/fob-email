@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, expect } from '@jest/globals';
 
 import { buildEmails } from '../src/resources/emails.js';
 import { listEmailsHandler } from '../src/cli/emails/list.js';
@@ -13,7 +12,7 @@ test('buildEmails.list forwards opts to ctx.list', async () => {
   const ctx = { list: async (opts) => { seen.push(opts); return { data: [], uidValidity: 1, folder: 'INBOX' }; } };
   const emails = buildEmails(ctx);
   await emails.list({ folder: 'Archive', limit: 10 });
-  assert.deepEqual(seen[0], { folder: 'Archive', limit: 10 });
+  expect(seen[0]).toEqual({ folder: 'Archive', limit: 10 });
 });
 
 test('buildEmails.get maps (id, opts) → ctx.fetchFull({ id, ...opts })', async () => {
@@ -21,7 +20,7 @@ test('buildEmails.get maps (id, opts) → ctx.fetchFull({ id, ...opts })', async
   const ctx = { fetchFull: async (arg) => { seen.push(arg); return { id: arg.id }; } };
   const emails = buildEmails(ctx);
   await emails.get(1423, { folder: 'INBOX' });
-  assert.deepEqual(seen[0], { id: 1423, folder: 'INBOX' });
+  expect(seen[0]).toEqual({ id: 1423, folder: 'INBOX' });
 });
 
 // -- list handler --------------------------------------------------------------
@@ -43,10 +42,10 @@ test('listEmailsHandler renders a human table and closes the client', async () =
   } finally {
     out.restore();
   }
-  assert.match(out.stdout, /ID\s+FROM\s+SUBJECT\s+DATE/);
-  assert.match(out.stdout, /billing@aws\.com/);
-  assert.match(out.stdout, /Invoice INV-0412/);
-  assert.equal(client.calls.closed, 1);
+  expect(out.stdout).toMatch(/ID\s+FROM\s+SUBJECT\s+DATE/);
+  expect(out.stdout).toMatch(/billing@aws\.com/);
+  expect(out.stdout).toMatch(/Invoice INV-0412/);
+  expect(client.calls.closed).toBe(1);
 });
 
 test('listEmailsHandler --json emits the raw envelope array', async () => {
@@ -58,8 +57,8 @@ test('listEmailsHandler --json emits the raw envelope array', async () => {
     out.restore();
   }
   const parsed = JSON.parse(out.stdout);
-  assert.equal(parsed.length, 2);
-  assert.equal(parsed[0].id, 1423);
+  expect(parsed.length).toBe(2);
+  expect(parsed[0].id).toBe(1423);
 });
 
 test('listEmailsHandler prints (no messages) on an empty folder', async () => {
@@ -70,7 +69,7 @@ test('listEmailsHandler prints (no messages) on an empty folder', async () => {
   } finally {
     out.restore();
   }
-  assert.match(out.stdout, /\(no messages\)/);
+  expect(out.stdout).toMatch(/\(no messages\)/);
 });
 
 // -- show handler --------------------------------------------------------------
@@ -95,12 +94,12 @@ test('showEmailHandler renders headers, body and attachments', async () => {
   } finally {
     out.restore();
   }
-  assert.match(out.stdout, /Email #1423/);
-  assert.match(out.stdout, /From:\s+AWS <billing@aws\.com>/);
-  assert.match(out.stdout, /Your invoice is attached\./);
-  assert.match(out.stdout, /invoice\.pdf.*42\.0 KB/);
-  assert.deepEqual(client.calls.get[0], { id: 1423, opts: { folder: 'INBOX' } });
-  assert.equal(client.calls.closed, 1);
+  expect(out.stdout).toMatch(/Email #1423/);
+  expect(out.stdout).toMatch(/From:\s+AWS <billing@aws\.com>/);
+  expect(out.stdout).toMatch(/Your invoice is attached\./);
+  expect(out.stdout).toMatch(/invoice\.pdf.*42\.0 KB/);
+  expect(client.calls.get[0]).toEqual({ id: 1423, opts: { folder: 'INBOX' } });
+  expect(client.calls.closed).toBe(1);
 });
 
 test('showEmailHandler --json emits the raw message', async () => {
@@ -112,6 +111,6 @@ test('showEmailHandler --json emits the raw message', async () => {
     out.restore();
   }
   const parsed = JSON.parse(out.stdout);
-  assert.equal(parsed.id, 1423);
-  assert.equal(parsed.subject, 'Invoice INV-0412');
+  expect(parsed.id).toBe(1423);
+  expect(parsed.subject).toBe('Invoice INV-0412');
 });

@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from '@jest/globals';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -16,32 +15,34 @@ function helpHeadings(args) {
     .filter((l) => /^(Positionals:|Options:|Global Options:)$/.test(l));
 }
 
-test("shows a command's own options above the inherited global ones", () => {
-  // emails show <id>: Positionals (id) → Options (account/folder/json) → Global Options (help/version)
-  assert.deepEqual(helpHeadings('emails show'), [
-    'Positionals:',
-    'Options:',
-    'Global Options:',
-  ]);
-});
+describe('help layout', () => {
+  it("shows a command's own options above the inherited global ones", () => {
+    // emails show <id>: Positionals (id) → Options (account/folder/json) → Global Options (help/version)
+    expect(helpHeadings('emails show')).toEqual([
+      'Positionals:',
+      'Options:',
+      'Global Options:',
+    ]);
+  });
 
-test('keeps positionals first when options are bundled before the positional', () => {
-  // config accounts add <name>: field options register alongside the positional; positional must still lead.
-  assert.deepEqual(helpHeadings('config accounts add'), [
-    'Positionals:',
-    'Options:',
-    'Global Options:',
-  ]);
-});
+  it('keeps positionals first when options are bundled before the positional', () => {
+    // config accounts add <name>: field options register alongside the positional; positional must still lead.
+    expect(helpHeadings('config accounts add')).toEqual([
+      'Positionals:',
+      'Options:',
+      'Global Options:',
+    ]);
+  });
 
-test('omits an empty Options group for commands with no local options', () => {
-  assert.deepEqual(helpHeadings('config accounts use'), [
-    'Positionals:',
-    'Global Options:',
-  ]);
-});
+  it('omits an empty Options group for commands with no local options', () => {
+    expect(helpHeadings('config accounts use')).toEqual([
+      'Positionals:',
+      'Global Options:',
+    ]);
+  });
 
-test('groups global options under their own heading even without positionals', () => {
-  // emails send: compose options only, no positional.
-  assert.deepEqual(helpHeadings('emails send'), ['Options:', 'Global Options:']);
+  it('groups global options under their own heading even without positionals', () => {
+    // emails send: compose options only, no positional.
+    expect(helpHeadings('emails send')).toEqual(['Options:', 'Global Options:']);
+  });
 });

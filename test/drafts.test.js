@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, expect } from '@jest/globals';
 
 import { mapSpecialFolders } from '../src/engine/capabilities.js';
 import { buildDrafts } from '../src/resources/drafts.js';
@@ -19,11 +18,11 @@ test('mapSpecialFolders maps SPECIAL-USE flags to paths (Gmail-style)', () => {
     { path: '[Gmail]/Trash', specialUse: '\\Trash' },
     { path: '[Gmail]/All Mail', specialUse: '\\All' },
   ]);
-  assert.equal(folders.drafts, '[Gmail]/Drafts');
-  assert.equal(folders.sent, '[Gmail]/Sent Mail');
-  assert.equal(folders.trash, '[Gmail]/Trash');
-  assert.equal(folders.all, '[Gmail]/All Mail');
-  assert.equal(folders.junk, null);
+  expect(folders.drafts).toBe('[Gmail]/Drafts');
+  expect(folders.sent).toBe('[Gmail]/Sent Mail');
+  expect(folders.trash).toBe('[Gmail]/Trash');
+  expect(folders.all).toBe('[Gmail]/All Mail');
+  expect(folders.junk).toBe(null);
 });
 
 // -- resource delegation -------------------------------------------------------
@@ -42,10 +41,10 @@ test('buildDrafts delegates to the ctx draft ops', async () => {
   await drafts.edit(5, { to: ['c@d.com'] });
   await drafts.delete(5);
   await drafts.send(6);
-  assert.deepEqual(seen.create, { to: ['a@b.com'] });
-  assert.deepEqual(seen.edit, { id: 5, m: { to: ['c@d.com'] } });
-  assert.equal(seen.delete, 5);
-  assert.equal(seen.send, 6);
+  expect(seen.create).toEqual({ to: ['a@b.com'] });
+  expect(seen.edit).toEqual({ id: 5, m: { to: ['c@d.com'] } });
+  expect(seen.delete).toBe(5);
+  expect(seen.send).toBe(6);
 });
 
 // -- handlers ------------------------------------------------------------------
@@ -58,8 +57,8 @@ test('createDraftHandler builds a message, saves, reports the id', async () => {
   } finally {
     out.restore();
   }
-  assert.deepEqual(client.calls.drafts.create[0].to, ['a@b.com']);
-  assert.match(out.stdout, /Saved draft #10 to \[Gmail\]\/Drafts/);
+  expect(client.calls.drafts.create[0].to).toEqual(['a@b.com']);
+  expect(out.stdout).toMatch(/Saved draft #10 to \[Gmail\]\/Drafts/);
 });
 
 test('editDraftHandler replaces and reports the new id', async () => {
@@ -70,19 +69,19 @@ test('editDraftHandler replaces and reports the new id', async () => {
   } finally {
     out.restore();
   }
-  assert.equal(client.calls.drafts.edit[0].id, 10);
-  assert.match(out.stdout, /Replaced draft #10 → #11/);
+  expect(client.calls.drafts.edit[0].id).toBe(10);
+  expect(out.stdout).toMatch(/Replaced draft #10 → #11/);
 });
 
 test('deleteDraftHandler refuses without --yes', async () => {
   const out = captureOutput();
   const client = fakeClient();
   try {
-    await assert.rejects(() => deleteDraftHandler({ id: '10' }, client), /Refusing to delete draft/);
+    await expect(() => deleteDraftHandler({ id: '10' }, client)).rejects.toThrow(/Refusing to delete draft/);
   } finally {
     out.restore();
   }
-  assert.equal(client.calls.drafts.delete.length, 0);
+  expect(client.calls.drafts.delete.length).toBe(0);
 });
 
 test('sendDraftHandler sends and reports recipients', async () => {
@@ -93,6 +92,6 @@ test('sendDraftHandler sends and reports recipients', async () => {
   } finally {
     out.restore();
   }
-  assert.equal(client.calls.drafts.send[0], 10);
-  assert.match(out.stdout, /Sent draft #10 to a@b\.com \(<d@x>\)/);
+  expect(client.calls.drafts.send[0]).toBe(10);
+  expect(out.stdout).toMatch(/Sent draft #10 to a@b\.com \(<d@x>\)/);
 });

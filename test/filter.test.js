@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test, expect } from '@jest/globals';
 import { filterEmails } from '../src/domain/filter.js';
 
 const sample = [
@@ -8,29 +7,29 @@ const sample = [
 ];
 
 test('filter by sender substring (name or addr)', () => {
-  assert.equal(filterEmails(sample, { from: 'tally' }).length, 1);
-  assert.equal(filterEmails(sample, { from: 'acme.com' }).length, 1);
+  expect(filterEmails(sample, { from: 'tally' }).length).toBe(1);
+  expect(filterEmails(sample, { from: 'acme.com' }).length).toBe(1);
 });
 
 test('filter by hasAttachment', () => {
-  assert.equal(filterEmails(sample, { hasAttachment: true }).length, 1);
-  assert.equal(filterEmails(sample, { hasAttachment: false }).length, 1);
+  expect(filterEmails(sample, { hasAttachment: true }).length).toBe(1);
+  expect(filterEmails(sample, { hasAttachment: false }).length).toBe(1);
 });
 
 test('filter by seen flag', () => {
-  assert.equal(filterEmails(sample, { seen: true }).length, 1);
-  assert.equal(filterEmails(sample, { seen: false }).length, 1);
+  expect(filterEmails(sample, { seen: true }).length).toBe(1);
+  expect(filterEmails(sample, { seen: false }).length).toBe(1);
 });
 
 test('filter by subject substring', () => {
-  assert.equal(filterEmails(sample, { subject: 'invoice' }).length, 1);
+  expect(filterEmails(sample, { subject: 'invoice' }).length).toBe(1);
 });
 
 test('empty criteria returns all', () => {
-  assert.equal(filterEmails(sample, {}).length, 2);
+  expect(filterEmails(sample, {}).length).toBe(2);
 });
 
 test('combined criteria are AND-ed', () => {
-  assert.equal(filterEmails(sample, { from: 'tally', hasAttachment: true }).length, 1);
-  assert.equal(filterEmails(sample, { from: 'tally', hasAttachment: false }).length, 0);
+  expect(filterEmails(sample, { from: 'tally', hasAttachment: true }).length).toBe(1);
+  expect(filterEmails(sample, { from: 'tally', hasAttachment: false }).length).toBe(0);
 });
