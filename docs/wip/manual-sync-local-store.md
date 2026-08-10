@@ -237,13 +237,35 @@ make `--cached` untrustworthy for the scripting case it exists to serve).
 
 Ordered so each lands independently, tests stay green, and the live path is never broken.
 
-### Phase 0 — Batch the envelope fetch (prerequisite, standalone value)
-Replace the per-uid `fetchOne` loop in `fetchEnvelopes()` (`src/engine/imap.js:282`) with a single
-ranged `client.fetch()` stream. This is **Tier 0** from the spark-comparison doc and the likely
-dominant latency term — it is worth shipping on its own merits, and sync depends on it (a sync that
-fetched one message per round-trip would be unusable).
-- Behavior-preserving; existing tests must pass untouched.
-- **Ship-alone checkpoint:** every read gets faster with no store in existence.
+### Phase 0 — Batch the envelope fetch (prerequisite, standalone value) ✅ DONE
+Replaced the per-uid `fetchOne` loops with a single ranged `client.fetch()` stream, via a shared
+`fetchByUids()` helper. This is **Tier 0** from the spark-comparison doc and the likely dominant
+latency term — worth shipping on its own merits, and sync depends on it (a sync fetching one message
+per round-trip would be unusable).
+
+**Landed:**
+- `fetchByUids(c, uids, query)` — one FETCH for a whole uid set. Re-projects results through the
+  requested uid order (the server streams in *its* order, not ours) and drops uids the server didn't
+  return, so a message expunged between the SEARCH and the FETCH leaves no gap. Short-circuits on an
+  empty set — `fetch()` with an empty range would otherwise resolve `1:*` and haul the whole mailbox.
+- `fetchEnvelopes()` — now one SEARCH + one FETCH. Serves `emails list`, `emails search`, and
+  `drafts list`. **50 messages: 50 round-trips → 1.**
+- `fetchThreadNodes()` — same treatment. Scope was widened beyond the original plan because it is the
+  identical fix on a worse path: `resolveThread` fetched **up to 500 messages one at a time**
+  (`imap.js:203`), and `listThreads` over-samples `limit × 4`. Leaving it would have been a
+  half-measure.
+- `test/imap-fetch.test.js` — the engine had **no** direct coverage (existing tests mock at the
+  resource/`ctx` seam), so passing tests proved only "nothing broke," not "batching works." Adds a
+  fake imapflow client asserting round-trip count, requested-order preservation, expunged-uid
+  handling, and empty-set short-circuit. Mutation-checked: breaking the re-projection fails 4 tests.
+- `fetchByUids`/`fetchEnvelopes` are exported for that test; the four remaining `fetchOne` calls are
+  genuine single-message fetches (full message, draft source, thread id) and correctly untouched.
+
+Behavior-preserving: 75/75 tests pass (68 pre-existing, untouched), typecheck clean.
+
+> **Incidental fix:** `npm test` was broken before this work — `jest-junit` was declared but two of
+> its transitive deps were missing from `node_modules`, so the suite couldn't start. `npm install`
+> restored them. No `package.json` change.
 
 ### Phase 1 — The store layer (no network)
 `src/store/` — open/migrate, schema, and typed read/write helpers. Fully unit-testable with a temp

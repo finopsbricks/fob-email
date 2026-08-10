@@ -278,45 +278,67 @@ export async function connectSession(account) {
   };
 }
 
-/** Search a folder and fetch the newest `limit` envelopes for the matched uids. */
-async function fetchEnvelopes(c, query, limit) {
-  const uids = (await c.search(query, { uid: true })) || [];
-  const pick = uids.slice(-limit).reverse();
-  const out = [];
-  for (const uid of pick) {
-    const msg = await c.fetchOne(
-      uid,
-      { uid: true, envelope: true, flags: true, bodyStructure: true },
-      { uid: true },
-    );
-    if (msg) out.push(toEnvelope(msg));
+/**
+ * Fetch `uids` in ONE ranged FETCH and return the messages in the order asked.
+ *
+ * The server streams `FETCH` responses in its own order, not the order of the
+ * requested set, so callers that care about ordering (we always do — listings
+ * are newest-first) cannot rely on arrival order. We index by uid on the way in
+ * and re-project through `uids` on the way out, which also drops uids the server
+ * didn't return (expunged between the SEARCH and the FETCH) without a gap.
+ *
+ * An empty set short-circuits: `fetch()` with an empty range would either issue
+ * a pointless command or resolve a `1:*` range and haul the whole mailbox back.
+ */
+export async function fetchByUids(c, uids, query) {
+  if (!uids.length) return [];
+  const byUid = new Map();
+  for await (const msg of c.fetch(uids, query, { uid: true })) {
+    byUid.set(Number(msg.uid), msg);
   }
-  return out;
+  return uids.map((uid) => byUid.get(Number(uid))).filter(Boolean);
 }
 
-/** Fetch thread nodes (envelope + optional server threadId + reference links). */
+/**
+ * Search a folder and fetch the newest `limit` envelopes for the matched uids.
+ * One SEARCH + one FETCH — not a fetch per message.
+ */
+export async function fetchEnvelopes(c, query, limit) {
+  const uids = (await c.search(query, { uid: true })) || [];
+  const pick = uids.slice(-limit).reverse();
+  const msgs = await fetchByUids(c, pick, {
+    uid: true,
+    envelope: true,
+    flags: true,
+    bodyStructure: true,
+  });
+  return msgs.map(toEnvelope);
+}
+
+/**
+ * Fetch thread nodes (envelope + optional server threadId + reference links) for
+ * `uids` in one ranged FETCH.
+ */
 async function fetchThreadNodes(c, uids, withThreadId) {
-  const nodes = [];
-  for (const uid of uids) {
-    const msg = await c.fetchOne(
-      uid,
-      { uid: true, envelope: true, threadId: withThreadId, headers: ['references', 'in-reply-to'] },
-      { uid: true },
-    );
-    if (!msg) continue;
+  const msgs = await fetchByUids(c, uids, {
+    uid: true,
+    envelope: true,
+    threadId: withThreadId,
+    headers: ['references', 'in-reply-to'],
+  });
+  return msgs.map((msg) => {
     const env = msg.envelope || {};
     const raw = msg.headers ? msg.headers.toString() : '';
     const refs = [...parseMessageIds(headerValue(raw, 'references')), ...parseMessageIds(env.inReplyTo)];
-    nodes.push({
+    return {
       id: Number(msg.uid),
       messageId: env.messageId || null,
       threadId: msg.threadId || null,
       refs,
       date: env.date ? new Date(env.date).toISOString() : null,
       envelope: toEnvelope(msg),
-    });
-  }
-  return nodes;
+    };
+  });
 }
 
 /** Read one header value from a raw header block, joining folded continuation lines. */
