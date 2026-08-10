@@ -4,8 +4,11 @@ import { buildEmails } from './resources/emails.js';
 import { buildFolders } from './resources/folders.js';
 import { buildThreads } from './resources/threads.js';
 import { buildDrafts } from './resources/drafts.js';
+import { buildSync } from './resources/sync.js';
+import { openStore } from './store/index.js';
 
 export { connectSession };
+export { openStore, isAvailable as syncAvailable } from './store/index.js';
 export { filterEmails } from './domain/filter.js';
 export { resolveAccount } from './config.js';
 
@@ -25,16 +28,48 @@ export { resolveAccount } from './config.js';
  *
  * @param {string|object} [account] account name, or a raw config object.
  */
-export function fobEmail(account) {
+export function fobEmail(account, { storePath } = {}) {
   const ctx = createTransport(account);
+
+  // The store opens on first use, like the connections — a client that never
+  // syncs never touches SQLite, so the live paths keep working on a runtime
+  // without it (and `close()` has nothing to tear down).
+  /** @type {any} */
+  let store = null;
+  const storeFor = () => (store ??= openStore(storePath ? { path: storePath } : undefined));
+
   return {
     emails: buildEmails(ctx),
     threads: buildThreads(ctx),
     drafts: buildDrafts(ctx),
     folders: buildFolders(ctx),
+
+    /**
+     * The local mirror (D7/D8). A getter so `openStore()` is deferred until a
+     * sync verb is actually called.
+     */
+    get sync() {
+      return buildSync(ctx, storeFor(), { account: accountKey(account) });
+    },
+
     /** Tear down whichever connections were opened. */
-    close: () => ctx.close(),
+    close: async () => {
+      await ctx.close();
+      if (store) store.close();
+    },
   };
+}
+
+/**
+ * The name a mirror's rows are filed under. A raw config object has no name, so
+ * it is keyed by its login address — two different mailboxes must never share
+ * mirror rows.
+ * @param {string|object} [account]
+ */
+function accountKey(account) {
+  if (!account) return 'default';
+  if (typeof account === 'string') return account;
+  return account?.imap?.user ?? 'default';
 }
 
 /** Connect and return a live session. Caller closes. Primary API for batching. */

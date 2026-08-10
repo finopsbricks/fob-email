@@ -17,6 +17,7 @@ import { buildEmailsSubcommands } from './emails/index.js';
 import { buildThreadsSubcommands } from './threads/index.js';
 import { buildDraftsSubcommands } from './drafts/index.js';
 import { buildFoldersSubcommands } from './folders/index.js';
+import { buildSyncSubcommands } from './sync/index.js';
 import { buildConfigSubcommands } from './config/index.js';
 
 export function run(argv) {
@@ -27,6 +28,7 @@ export function run(argv) {
     .command('threads <action>', 'Read conversations', buildThreadsSubcommands)
     .command('drafts <action>', 'Compose, save, and send drafts', buildDraftsSubcommands)
     .command('folders <action>', 'List and manage folders', buildFoldersSubcommands)
+    .command('sync <action>', 'Sync mail into a local mirror for faster reads', buildSyncSubcommands)
     .command('config <resource>', 'Manage email account credentials (alias: accounts)', buildConfigSubcommands)
     .demandCommand(1, 'Specify a resource. Try `fob-email --help`.')
     .strict()

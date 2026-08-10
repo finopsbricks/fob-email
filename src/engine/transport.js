@@ -38,6 +38,12 @@ export function createTransport(account) {
     /** @returns {Promise<Array<object>>} */
     listFolders: async () => (await session()).listFolders(),
 
+    // -- sync (server → local only, D7) ---------------------------------------
+    /** @param {string} [folder] one STATUS round-trip: uidNext/uidValidity/modseq */
+    statusOf: async (folder) => (await session()).statusOf(folder),
+    /** @param {object} [opts] envelopes + the window's uid set, for a sync pass */
+    fetchForSync: async (opts) => (await session()).fetchForSync(opts),
+
     // -- threads (strategy read from the profile — D6) ------------------------
     /** @param {object} [opts] */
     listThreads: async (opts) => (await session()).listThreads(opts),

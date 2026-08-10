@@ -312,11 +312,45 @@ against `:memory:` and temp files.
 > resolver in every host, which keeps the fix in `src/` as one documented line instead of a
 > Jest-specific resolver shim. Revisit when `node:sqlite` stabilises.
 
-### Phase 2 — `sync run` for one folder
-`statusOf()` + `fetchEnvelopesSince()` in the engine, `resources/sync.js`, and the CLI command.
-Full resync path first, then the `uidNext` incremental path.
-- **Deferred within the phase:** CONDSTORE flags (Phase 3) — v1 of this phase re-fetches flags for
-  the window, which is correct if slower.
+### Phase 2 — `sync run` for one folder ✅ DONE
+`statusOf()` + `fetchForSync()` in the engine, `resources/sync.js`, and the full `sync` command tree.
+
+**Landed:**
+- `engine/imap.js` — `statusOf(folder)` (one `STATUS`: uidNext/uidValidity/messages/highestModseq,
+  modseq stringified so it survives SQLite TEXT) and `fetchForSync({ folder, sinceUid, limit })`,
+  which returns envelopes **plus the uid set the server reported for the searched window**. That uid
+  set is what makes vanished-message reconciliation possible at all.
+- `engine/transport.js` + `types/general/Transport.types.js` — both ops exposed on the seam. (The
+  typecheck caught the missing type entries, which is exactly what that layer is for.)
+- `resources/sync.js` — `buildSync(ctx, store)`, the only place the engine and store meet.
+- `cli/sync/{index,run,status,clear}.js` + registration in `cli/index.js`.
+- `index.js` — `fobEmail()` gains a lazy `sync` namespace; the store opens on first use so a client
+  that never syncs never touches SQLite. Accounts passed as raw config objects are keyed by login
+  address so two mailboxes can't share mirror rows.
+- `test/sync.test.js` — 20 tests against a fake transport whose mailbox can be mutated between
+  syncs, plus CLI handler coverage.
+
+**Two behaviours were load-bearing enough to mutation-check** (both delete mail from the mirror when
+wrong, and both were verified by breaking them and watching the right tests fail):
+- **An incremental pass must not reconcile deletions.** Its search window starts at the stored
+  cursor, so every older mirrored row is out of scope — treating them as "absent from the server"
+  would wipe the mirror on *every* incremental sync. Removing the guard fails 3 tests.
+- **A UIDVALIDITY roll must purge** (D4). Same uids, different mail; without the purge the mirror
+  silently reinterprets stale ids against new messages. Removing it fails the reset test.
+
+Two smaller traps worth recording:
+- `uid N:*` always matches the highest existing uid **even when no uid is ≥ N**, so a naive
+  incremental sync re-fetches one message on every poll. Filtered explicitly; covered by a test.
+- A `--limit`ed first sync only asked about the newest N, so deletion reconciliation is bounded by
+  `windowFrom` — otherwise the first capped sync would delete every older row it holds.
+
+`sync run` reports its **mode** (`full` / `incremental` / `reset`) because the three mean very
+different things to someone waiting on it, and a silent rebuild under the label "sync" would hide a
+real server-side event. `reset` also warns on stderr.
+
+- **Deferred as planned:** CONDSTORE flag deltas (Phase 3). This phase re-fetches the window rather
+  than trusting stored flags — correct if slower. `highest_modseq` is deliberately stored as `null`:
+  recording one now would let Phase 3 assume a delta window this phase never actually reconciled.
 
 ### Phase 3 — Incremental refinement
 CONDSTORE `changedSince` for flag deltas, plus the **vanished-message reconciliation** from step 5.

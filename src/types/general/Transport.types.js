@@ -10,6 +10,8 @@
  * @property {(opts: object) => Promise<any>} fetchFull
  * @property {(opts: object) => Promise<Array<object>>} fetchAttachments
  * @property {() => Promise<Array<object>>} listFolders
+ * @property {(folder?: string) => Promise<{ folder: string, uidNext: number|null, uidValidity: number|null, messages: number|null, highestModseq: string|null }>} statusOf
+ * @property {(opts?: object) => Promise<{ folder: string, uidValidity: number|null, uids: number[], windowFrom: number|null, data: any[] }>} fetchForSync
  * @property {(opts?: object) => Promise<Array<object>>} listThreads
  * @property {(opts: object) => Promise<{ id: string, messages: any[] }>} resolveThread
  * @property {(opts: object) => Promise<any>} setFlag

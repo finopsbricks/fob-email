@@ -108,6 +108,79 @@ export async function connectSession(account) {
         return { data, uidValidity: uidValidityOf(c), folder };
       }),
 
+    /**
+     * A folder's sync cursors, without opening it — one `STATUS` round-trip.
+     * `highestModseq` comes back only when the server advertises CONDSTORE; it
+     * is a BigInt, stringified here so it survives JSON and SQLite TEXT intact
+     * (SQLite INTEGER is signed 64-bit and modseq is unsigned).
+     */
+    statusOf: async (folder = 'INBOX') => {
+      const s = await client.status(folder, {
+        uidNext: true,
+        uidValidity: true,
+        messages: true,
+        highestModseq: true,
+      });
+      return {
+        folder,
+        uidNext: s?.uidNext == null ? null : Number(s.uidNext),
+        uidValidity: s?.uidValidity == null ? null : Number(s.uidValidity),
+        messages: s?.messages == null ? null : Number(s.messages),
+        highestModseq: s?.highestModseq == null ? null : String(s.highestModseq),
+      };
+    },
+
+    /**
+     * Envelopes for a sync pass, plus the uid set actually present in the window.
+     *
+     * `sinceUid` fetches only `sinceUid:*` (the incremental path); omitting it
+     * walks the whole folder (first sync / `--full`). `limit` caps a first sync
+     * to the newest N so a huge mailbox doesn't stall on the initial pull.
+     *
+     * The `uids` field is what makes vanished-message reconciliation possible:
+     * it is the server's current answer for the searched window, so the caller
+     * can diff it against mirrored rows. It is **only** meaningful for the range
+     * that was actually searched, which is why `windowFrom` is reported back.
+     */
+    fetchForSync: ({ folder = 'INBOX', sinceUid = null, limit = null } = {}) =>
+      withFolder(folder, null, async (c) => {
+        const criteria = sinceUid ? { uid: `${sinceUid}:*` } : { all: true };
+        let uids = (await c.search(criteria, { uid: true })) || [];
+
+        // An IMAP `uid N:*` range always matches at least the highest existing
+        // uid, even when every uid is below N — so a "no new mail" poll comes
+        // back with one stale hit. Drop anything below the cursor.
+        if (sinceUid) uids = uids.filter((u) => Number(u) >= Number(sinceUid));
+
+        const windowFrom = limit && !sinceUid && uids.length > limit ? Number(uids[uids.length - limit]) : null;
+        const pick = limit && !sinceUid ? uids.slice(-limit) : uids;
+
+        const msgs = await fetchByUids(c, pick, {
+          uid: true,
+          envelope: true,
+          flags: true,
+          bodyStructure: true,
+          threadId: strategyFor() === 'thread-id',
+          headers: ['references', 'in-reply-to'],
+        });
+
+        return {
+          folder,
+          uidValidity: uidValidityOf(c),
+          uids: pick.map(Number),
+          windowFrom,
+          data: msgs.map((msg) => {
+            const env = msg.envelope || {};
+            const raw = msg.headers ? msg.headers.toString() : '';
+            return {
+              ...toEnvelope(msg),
+              threadId: msg.threadId ? String(msg.threadId) : null,
+              refs: [...parseMessageIds(headerValue(raw, 'references')), ...parseMessageIds(env.inReplyTo)],
+            };
+          }),
+        };
+      }),
+
     /** Fetch one full message by uid (parsed body + attachment metadata). */
     fetchFull: ({ id, folder = 'INBOX', uidValidity } = {}) =>
       withFolder(folder, uidValidity, async (c) => {
