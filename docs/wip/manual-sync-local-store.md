@@ -83,7 +83,24 @@ resolve it. **v1 keeps UIDs everywhere**, so cached and live reads are interchan
 contract is untouched. The store still carries a stable `id` primary key internally, so exposing it
 later is additive — but it stays internal for now.
 
-### S4 — SQLite driver: `node:sqlite` `PROPOSED`
+### S4 — SQLite driver: `node:sqlite` ✅ **CONFIRMED (2026-08-10)**
+Settled as proposed: **`node:sqlite`, zero new dependencies, engines floor raised to `>=22.5.0`.**
+
+Sequelize was evaluated and rejected on a hard technical constraint: **its SQLite dialect requires
+the native `sqlite3` npm package and cannot drive `node:sqlite`** (`sqlite3` is a listed optional
+peer dep; no adapter exists). Adopting it would have meant a native module — node-gyp/prebuilds —
+for every user including those who never sync, plus ~14 transitive deps, and would have made the
+engines bump pointless since `sqlite3` runs on Node 18. The family's `architecture/database/`
+standards that describe Sequelize are written for the Postgres/Next.js apps (`DataTypes.JSONB`,
+`schema: 'auth'`, `process.env.DB_APP`, CommonJS) and don't transfer to an ESM CLI with no server.
+
+The store therefore follows **this repo's own idiom** instead — a functional factory
+(`openStore()`) in the same shape as `connectSession`/`connectMailer` per **D5** — with
+hand-written SQL. Original text follows.
+
+---
+
+### S4 (original proposal) — SQLite driver: `node:sqlite`
 Verified on this machine (Node v22.21.0): `node:sqlite` is present and exposes
 `DatabaseSync`/`StatementSync`. **It emits `ExperimentalWarning: SQLite is an experimental feature`
 on stderr**, which would pollute the diagnostics channel — suppressible per-process, but worth
@@ -267,12 +284,33 @@ Behavior-preserving: 75/75 tests pass (68 pre-existing, untouched), typecheck cl
 > its transitive deps were missing from `node_modules`, so the suite couldn't start. `npm install`
 > restored them. No `package.json` change.
 
-### Phase 1 — The store layer (no network)
-`src/store/` — open/migrate, schema, and typed read/write helpers. Fully unit-testable with a temp
-dir and zero IMAP.
-- Confirms **S4** (driver) and **S5** (location) in practice.
-- Includes the `uidValidity`-mismatch purge and the atomic cursor+rows transaction.
-- Optional-capability guard: a clear error if `node:sqlite` is unavailable.
+### Phase 1 — The store layer (no network) ✅ DONE
+`src/store/` — schema, path resolution, and an `openStore()` factory. Zero IMAP, fully unit-tested
+against `:memory:` and temp files.
+
+**Landed:**
+- `src/store/schema.js` — pure SQL text + `SCHEMA_VERSION`. Two tables as designed above.
+- `src/store/path.js` — `~/.fob/fob-email/sync.db`, honouring `FOB_EMAIL_CONFIG_DIR`. Resolved
+  **per call** (unlike `config.js`'s module-load `CONFIG_PATH`) so tests can redirect it after import.
+- `src/store/index.js` — `openStore()`, a D5-style functional factory. Prepared statements built
+  once; `syncFolder()` applies purge + upserts + vanished-deletes + cursor advance **in one
+  transaction**; `clear()` at folder/account/whole-store granularity; `isAvailable()` as a capability
+  check so `sync` can fail with a useful message instead of crashing on an old runtime.
+- Cached envelopes are emitted in **exactly** the shape `engine/imap.js` `toEnvelope` produces, so a
+  cached read is indistinguishable to every layer above — that is what will make Phase 4 a pure
+  branch behind the `ctx` seam rather than a second rendering path.
+- The store file is created `0600` like `config.yml`: envelope metadata (subjects, addresses,
+  correspondence patterns) is user-private even without bodies.
+- `test/store.test.js` — 18 tests. The load-bearing one is **"a failed syncFolder advances neither
+  rows nor cursor"**: it poisons a message mid-transaction and asserts full rollback. Mutation-checked
+  by swapping the `ROLLBACK` for a `COMMIT`, which fails exactly that test and nothing else.
+- `package.json` engines → `>=22.5.0`.
+
+> **`node:sqlite` is loaded via `createRequire`, not `import`.** Being experimental it is absent from
+> `module.builtinModules`, so Jest's ESM loader doesn't recognise it as a core module, strips the
+> `node:` prefix, and tries to read it as a *file* (ENOENT). `createRequire` reaches the real runtime
+> resolver in every host, which keeps the fix in `src/` as one documented line instead of a
+> Jest-specific resolver shim. Revisit when `node:sqlite` stabilises.
 
 ### Phase 2 — `sync run` for one folder
 `statusOf()` + `fetchEnvelopesSince()` in the engine, `resources/sync.js`, and the CLI command.
