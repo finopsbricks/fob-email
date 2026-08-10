@@ -12,9 +12,14 @@ This is the **Tier 1** fork from the
 useful form: **manual only**. No daemon, no IDLE, no background refresh, no auto-sync-on-read.
 The user decides when to sync, by running a command.
 
-**Direction is already settled** by [D7 — Sync is unidirectional](../decisions/0001-unidirectional-sync.md):
-data flows server → local only. The store is a mirror, never an authority. Nothing in this WIP
-queues, defers, or pushes a write.
+**Two decisions are already settled and constrain everything below:**
+
+- [**D7 — Sync is unidirectional**](../decisions/0001-unidirectional-sync.md): data flows server →
+  local only. The store is a mirror, never an authority. Nothing here queues, defers, or pushes a
+  write.
+- [**D8 — The store is local**](../decisions/0002-local-store-not-a-service.md): SQLite on the
+  user's machine, not a hosted `email.finopsbricks.com`. Credentials never leave the machine and
+  the CLI keeps working with no service dependency.
 
 ---
 
