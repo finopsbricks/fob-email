@@ -48,11 +48,14 @@ export function buildSync(ctx, store, { account = 'default', now = () => new Dat
      *      against fresh ids would silently point at the wrong messages.
      *   3. Fetch new messages from the stored cursor (or the whole folder, capped
      *      by `limit`, on a first pass).
-     *   4. Flags: Phase 2 re-fetches the window rather than pretending stored
-     *      flags are current. CONDSTORE `changedSince` lands in Phase 3.
-     *   5. Vanished messages: diff the searched window's uid set against the
-     *      mirrored uids **in that same window** and delete the difference.
-     *   6. Commit rows + cursor in one transaction (store.syncFolder).
+     *   4. Flags on already-mirrored messages: a CONDSTORE `changedSince` delta
+     *      when the server negotiated it and we hold a modseq cursor; otherwise
+     *      re-read the window, because a stale \Seen that never corrects itself
+     *      is worse than a slower sync.
+     *   5. Vanished messages: CONDSTORE reports modifications, not deletions, so
+     *      ask the server which uids still exist and delete the difference —
+     *      bounded to the range actually asked about.
+     *   6. Commit rows, flag deltas, and cursor in one transaction.
      *
      * @param {{ folder?: string, full?: boolean, limit?: number|null }} [opts]
      */
@@ -72,28 +75,74 @@ export function buildSync(ctx, store, { account = 'default', now = () => new Dat
       const sinceUid = fresh ? null : (stored?.uidNext ?? null);
 
       const result = await ctx.fetchForSync({ folder, sinceUid, limit: fresh ? limit : null });
+      const uidValidity = result.uidValidity ?? status.uidValidity;
+      const ref = { account, folder, uidValidity };
 
-      // Reconcile deletions only across the range we actually asked about. On an
-      // incremental pass that range starts at the old cursor, so older mirrored
-      // rows are simply out of scope and must not be treated as vanished — that
-      // would delete the entire mirror on every incremental sync.
-      const vanished = fresh
-        ? vanishedIn(store, { account, folder, uidValidity: result.uidValidity }, result.uids, result.windowFrom)
-        : [];
+      // -- flags -------------------------------------------------------------
+      // New messages arrived with fresh flags; the question is only whether
+      // *already-mirrored* messages had theirs changed. On a fresh pass every row
+      // is being rewritten anyway, so there is nothing to reconcile.
+      let flagChanges = [];
+      let flagMode = fresh ? 'full' : 'none';
+      /** @type {number[]|null} a uid census obtained as a by-product of a re-read */
+      let censusUids = null;
+
+      if (!fresh && stored?.highestModseq) {
+        const delta = await ctx.fetchFlagChanges({ folder, sinceModseq: stored.highestModseq });
+        if (delta.supported) {
+          // Only rows we actually mirror; a changed uid outside the mirror is
+          // not ours to record.
+          const known = new Set(store.uidsIn(ref));
+          flagChanges = delta.changes.filter((c) => known.has(Number(c.id)));
+          flagMode = 'condstore';
+        }
+      }
+
+      // Without a usable modseq cursor, stored flags cannot be trusted at all —
+      // re-read the window rather than let a stale \Seen persist indefinitely.
+      // Correctness over cleverness; CONDSTORE is the optimisation, not the rule.
+      if (!fresh && flagMode === 'none') {
+        const refetch = await ctx.fetchForSync({ folder, sinceUid: null, limit: null });
+        flagChanges = refetch.data.map((m) => ({ id: m.id, flags: m.flags }));
+        flagMode = 'refetch';
+        // A whole-folder re-read is also an authoritative uid census, so reuse
+        // it below instead of paying for a second scan.
+        censusUids = refetch.uids;
+      }
+
+      // -- vanished ----------------------------------------------------------
+      // CONDSTORE reports *modified* messages and says nothing about deleted
+      // ones (that is QRESYNC), so the only reliable answer is to ask which uids
+      // still exist and diff. On an incremental pass the fetch window starts at
+      // the cursor and therefore proves nothing about older rows — hence an
+      // explicit census. It is one SEARCH returning integers, not a refetch.
+      let vanished = [];
+      if (fresh) {
+        vanished = vanishedIn(store, ref, result.uids, result.windowFrom);
+      } else if (censusUids) {
+        vanished = vanishedIn(store, ref, censusUids, null);
+      } else {
+        const census = await ctx.listUids({ folder });
+        vanished = vanishedIn(store, ref, census.uids, null);
+      }
 
       store.syncFolder({
         account,
         folder,
         messages: result.data,
+        flagChanges,
         vanished,
         purge: fresh,
         cursor: {
-          uidValidity: result.uidValidity ?? status.uidValidity,
+          uidValidity,
           uidNext: status.uidNext,
-          // Phase 2 does not consume modseq deltas, so storing one now would let
-          // Phase 3 assume a window it never actually reconciled. Left null
-          // until the CONDSTORE path exists to honour it.
-          highestModseq: null,
+          // Only store a modseq we could actually act on. Recording one while
+          // the delta path is unavailable would make the *next* sync assume a
+          // window it never reconciled, silently skipping flag changes.
+          highestModseq:
+            flagMode === 'condstore' || (fresh && (await ctx.hasCondstore()))
+              ? (result.highestModseq ?? status.highestModseq ?? null)
+              : (stored?.highestModseq ?? null),
           lastSyncedAt: now(),
         },
       });
@@ -102,10 +151,12 @@ export function buildSync(ctx, store, { account = 'default', now = () => new Dat
         account,
         folder,
         mode: fresh ? (rolled ? 'reset' : 'full') : 'incremental',
+        flagMode,
         fetched: result.data.length,
+        flagsUpdated: flagChanges.length,
         vanished: vanished.length,
         total: store.countMessages({ account, folder }),
-        uidValidity: result.uidValidity ?? status.uidValidity,
+        uidValidity,
         uidNext: status.uidNext,
         syncedAt: now(),
       };

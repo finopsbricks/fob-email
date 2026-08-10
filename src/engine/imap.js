@@ -109,6 +109,14 @@ export async function connectSession(account) {
       }),
 
     /**
+     * Did the server *agree* to CONDSTORE? `client.enabled` is the post-ENABLE
+     * set, so it reflects what was negotiated rather than what CAPABILITY merely
+     * advertised — the distinction that decides whether a modseq cursor can be
+     * trusted at all.
+     */
+    hasCondstore: () => Boolean(client.enabled?.has?.('CONDSTORE')),
+
+    /**
      * A folder's sync cursors, without opening it — one `STATUS` round-trip.
      * `highestModseq` comes back only when the server advertises CONDSTORE; it
      * is a BigInt, stringified here so it survives JSON and SQLite TEXT intact
@@ -167,6 +175,9 @@ export async function connectSession(account) {
         return {
           folder,
           uidValidity: uidValidityOf(c),
+          // Read from the *open* mailbox, so it is the modseq as of this fetch —
+          // the only value safe to store as a delta cursor.
+          highestModseq: highestModseqOf(c),
           uids: pick.map(Number),
           windowFrom,
           data: msgs.map((msg) => {
@@ -180,6 +191,45 @@ export async function connectSession(account) {
           }),
         };
       }),
+
+    /**
+     * Flags that changed since `sinceModseq` — one CONDSTORE fetch that returns
+     * *only* touched messages, instead of re-reading the whole window.
+     *
+     * Returns `{ supported: false }` when the server never enabled CONDSTORE, so
+     * the caller falls back rather than silently believing an empty delta means
+     * "nothing changed".
+     */
+    fetchFlagChanges: ({ folder = 'INBOX', sinceModseq } = {}) =>
+      withFolder(folder, null, async (c) => {
+        if (!client.enabled?.has?.('CONDSTORE')) return { supported: false, folder, changes: [] };
+
+        const changes = [];
+        for await (const msg of c.fetch(
+          { all: true },
+          { uid: true, flags: true, modseq: true },
+          { uid: true, changedSince: BigInt(sinceModseq) },
+        )) {
+          changes.push({ id: Number(msg.uid), flags: msg.flags ? [...msg.flags] : [] });
+        }
+        return { supported: true, folder, uidValidity: uidValidityOf(c), changes };
+      }),
+
+    /**
+     * Every uid currently in a folder — a bare `SEARCH ALL`, no FETCH.
+     *
+     * This is how vanished messages are found without QRESYNC. CONDSTORE reports
+     * *modified* messages but says nothing about deleted ones, so the only
+     * reliable answer is to ask the server which uids still exist and diff. It
+     * is one round-trip returning a list of integers, so it stays cheap even on
+     * a large folder — far cheaper than re-fetching envelopes to find absences.
+     */
+    listUids: ({ folder = 'INBOX' } = {}) =>
+      withFolder(folder, null, async (c) => ({
+        folder,
+        uidValidity: uidValidityOf(c),
+        uids: ((await c.search({ all: true }, { uid: true })) || []).map(Number),
+      })),
 
     /** Fetch one full message by uid (parsed body + attachment metadata). */
     fetchFull: ({ id, folder = 'INBOX', uidValidity } = {}) =>
@@ -455,6 +505,18 @@ function threadKey(sorted, strategy) {
 
 function byDateAscNode(a, b) {
   return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
+}
+
+/**
+ * The open mailbox's HIGHESTMODSEQ as a string, or null when the server doesn't
+ * track one. Stringified because modseq is unsigned 64-bit: it exceeds
+ * Number.MAX_SAFE_INTEGER and SQLite INTEGER is *signed* 64-bit, so TEXT is the
+ * only lossless carrier.
+ */
+function highestModseqOf(client) {
+  const mailbox = client.mailbox;
+  const v = mailbox && typeof mailbox === 'object' ? mailbox.highestModseq : undefined;
+  return v == null ? null : String(v);
 }
 
 function uidValidityOf(client) {

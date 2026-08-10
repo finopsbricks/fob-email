@@ -37,11 +37,23 @@ export async function syncRunHandler(argv, mbox) {
     }
 
     console.log(formatField('Folder', `${result.folder} (${result.account})`));
-    console.log(formatField('Mode', result.mode));
+    console.log(formatField('Mode', modeLabel(result)));
     console.log(formatField('Fetched', String(result.fetched)));
+    if (result.flagsUpdated) console.log(formatField('Flags updated', String(result.flagsUpdated)));
     if (result.vanished) console.log(formatField('Removed', String(result.vanished)));
     console.log(formatField('Mirrored', String(result.total)));
   } finally {
     await client.close();
   }
+}
+
+/**
+ * Name the mode, noting when an incremental sync had to fall back to re-reading
+ * the folder. That distinction is the difference between a cheap sync and an
+ * expensive one, and it is a property of the *server* (no CONDSTORE) rather than
+ * anything the user did — so it is worth showing rather than hiding.
+ */
+function modeLabel({ mode, flagMode }) {
+  if (mode !== 'incremental') return mode;
+  return flagMode === 'refetch' ? 'incremental (full flag re-read — no CONDSTORE)' : 'incremental';
 }

@@ -36,9 +36,9 @@ const envelope = (uid, subject, date, extra = {}) => ({
  * A fake transport. `mailbox` is the server's truth; each call recomputes from
  * it, so a test can mutate the mailbox between syncs the way a real server would.
  */
-function fakeCtx({ messages = [], uidValidity = 42, uidNext = null } = {}) {
-  const state = { messages: [...messages], uidValidity, uidNext };
-  const calls = { statusOf: [], fetchForSync: [] };
+function fakeCtx({ messages = [], uidValidity = 42, uidNext = null, condstore = false, modseq = null } = {}) {
+  const state = { messages: [...messages], uidValidity, uidNext, condstore, modseq, flagChanges: [] };
+  const calls = { statusOf: [], fetchForSync: [], fetchFlagChanges: [], listUids: [] };
 
   return {
     state,
@@ -51,9 +51,10 @@ function fakeCtx({ messages = [], uidValidity = 42, uidNext = null } = {}) {
         uidValidity: state.uidValidity,
         uidNext: state.uidNext ?? maxUid + 1,
         messages: state.messages.length,
-        highestModseq: null,
+        highestModseq: state.modseq,
       };
     },
+    hasCondstore: async () => state.condstore,
     fetchForSync: async ({ folder = 'INBOX', sinceUid = null, limit = null } = {}) => {
       calls.fetchForSync.push({ folder, sinceUid, limit });
       let picked = state.messages.filter((m) => (sinceUid ? m.id >= Number(sinceUid) : true));
@@ -65,10 +66,20 @@ function fakeCtx({ messages = [], uidValidity = 42, uidNext = null } = {}) {
       return {
         folder,
         uidValidity: state.uidValidity,
+        highestModseq: state.modseq,
         uids: picked.map((m) => m.id),
         windowFrom,
         data: picked,
       };
+    },
+    fetchFlagChanges: async ({ folder = 'INBOX', sinceModseq } = {}) => {
+      calls.fetchFlagChanges.push({ folder, sinceModseq });
+      if (!state.condstore) return { supported: false, folder, changes: [] };
+      return { supported: true, folder, uidValidity: state.uidValidity, changes: state.flagChanges };
+    },
+    listUids: async ({ folder = 'INBOX' } = {}) => {
+      calls.listUids.push(folder);
+      return { folder, uidValidity: state.uidValidity, uids: state.messages.map((m) => m.id) };
     },
     close: async () => {},
   };
@@ -167,6 +178,101 @@ test('a full sync removes messages deleted server-side', async () => {
 
   expect(res.total).toBe(2);
   expect(store.listMessages({ account: 'work', folder: 'INBOX' }).map((m) => m.id)).toEqual([3, 1]);
+});
+
+// -- Phase 3: flags ------------------------------------------------------------
+
+test('without CONDSTORE, an incremental sync re-reads the window to refresh flags', async () => {
+  const ctx = fakeCtx({ messages: [envelope(1, 'a', at(1))], condstore: false });
+  const sync = mk(ctx);
+  await sync.run({ folder: 'INBOX' });
+
+  // Server-side someone marked it read.
+  ctx.state.messages = [envelope(1, 'a', at(1), { flags: ['\\Seen'] })];
+  const res = await sync.run({ folder: 'INBOX' });
+
+  expect(res.flagMode).toBe('refetch');
+  expect(store.listMessages({ account: 'work', folder: 'INBOX' })[0].flags).toEqual(['\\Seen']);
+});
+
+test('with CONDSTORE, flags update via a delta without refetching envelopes', async () => {
+  const ctx = fakeCtx({ messages: [envelope(1, 'a', at(1))], condstore: true, modseq: '100' });
+  const sync = mk(ctx);
+  await sync.run({ folder: 'INBOX' });
+
+  ctx.state.modseq = '150';
+  ctx.state.flagChanges = [{ id: 1, flags: ['\\Seen'] }];
+  const before = ctx.calls.fetchForSync.length;
+  const res = await sync.run({ folder: 'INBOX' });
+
+  expect(res.flagMode).toBe('condstore');
+  expect(res.flagsUpdated).toBe(1);
+  expect(store.listMessages({ account: 'work', folder: 'INBOX' })[0].flags).toEqual(['\\Seen']);
+  // One incremental fetch only — no whole-window re-read.
+  expect(ctx.calls.fetchForSync.length).toBe(before + 1);
+  expect(ctx.calls.fetchFlagChanges[0].sinceModseq).toBe('100');
+});
+
+test('a CONDSTORE sync stores the modseq cursor; a non-CONDSTORE one does not', async () => {
+  const withCs = fakeCtx({ messages: [envelope(1, 'a', at(1))], condstore: true, modseq: '100' });
+  await mk(withCs).run({ folder: 'INBOX' });
+  expect(store.getFolder({ account: 'work', folder: 'INBOX' }).highestModseq).toBe('100');
+
+  const noCs = fakeCtx({ messages: [envelope(1, 'a', at(1))], condstore: false, modseq: '100' });
+  await buildSync(noCs, store, { account: 'other', now }).run({ folder: 'INBOX' });
+  expect(store.getFolder({ account: 'other', folder: 'INBOX' }).highestModseq).toBeNull();
+});
+
+test('a flag delta for a uid we do not mirror is ignored', async () => {
+  const ctx = fakeCtx({ messages: [envelope(1, 'a', at(1))], condstore: true, modseq: '100' });
+  const sync = mk(ctx);
+  await sync.run({ folder: 'INBOX' });
+
+  ctx.state.modseq = '150';
+  ctx.state.flagChanges = [{ id: 999, flags: ['\\Seen'] }];
+  const res = await sync.run({ folder: 'INBOX' });
+
+  expect(res.flagsUpdated).toBe(0);
+  expect(store.countMessages({ account: 'work', folder: 'INBOX' })).toBe(1);
+});
+
+// -- Phase 3: vanished on incremental ------------------------------------------
+
+test('an incremental sync detects messages deleted below the cursor', async () => {
+  // The Phase 2 gap: CONDSTORE reports modifications, never deletions, so an
+  // incremental pass needs an explicit uid census to notice a removal.
+  const ctx = fakeCtx({ messages: [1, 2, 3].map((u) => envelope(u, `s${u}`, at(u))), condstore: true, modseq: '100' });
+  const sync = mk(ctx);
+  await sync.run({ folder: 'INBOX' });
+
+  ctx.state.messages = ctx.state.messages.filter((m) => m.id !== 2);
+  ctx.state.modseq = '150';
+  const res = await sync.run({ folder: 'INBOX' });
+
+  expect(res.vanished).toBe(1);
+  expect(store.listMessages({ account: 'work', folder: 'INBOX' }).map((m) => m.id)).toEqual([3, 1]);
+});
+
+test('the census does not delete rows the server still has', async () => {
+  const ctx = fakeCtx({ messages: [1, 2, 3].map((u) => envelope(u, `s${u}`, at(u))), condstore: true, modseq: '100' });
+  const sync = mk(ctx);
+  await sync.run({ folder: 'INBOX' });
+
+  const res = await sync.run({ folder: 'INBOX' });
+  expect(res.vanished).toBe(0);
+  expect(res.total).toBe(3);
+});
+
+test('a non-CONDSTORE incremental reuses its re-read as the census, not a second scan', async () => {
+  const ctx = fakeCtx({ messages: [1, 2].map((u) => envelope(u, `s${u}`, at(u))), condstore: false });
+  const sync = mk(ctx);
+  await sync.run({ folder: 'INBOX' });
+
+  ctx.state.messages = ctx.state.messages.filter((m) => m.id !== 1);
+  const res = await sync.run({ folder: 'INBOX' });
+
+  expect(res.vanished).toBe(1);
+  expect(ctx.calls.listUids).toHaveLength(0); // reused the refetch
 });
 
 // -- UIDVALIDITY (D4) ----------------------------------------------------------

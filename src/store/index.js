@@ -125,6 +125,10 @@ export function openStore({ path } = {}) {
       flags          = excluded.flags,
       has_attachment = excluded.has_attachment
   `);
+  const updateFlagsRow = stmt(`
+    UPDATE messages SET flags = ?
+    WHERE account = ? AND folder = ? AND uid_validity = ? AND uid = ?
+  `);
   const deleteFolderMessages = stmt('DELETE FROM messages WHERE account = ? AND folder = ?');
   const deleteFolderRow = stmt('DELETE FROM folders WHERE account = ? AND path = ?');
   const countMessages = stmt(
@@ -192,11 +196,14 @@ export function openStore({ path } = {}) {
      * @param {string} input.account
      * @param {string} input.folder
      * @param {object[]} [input.messages] envelopes to upsert
+     * @param {Array<{id: number, flags: string[]}>} [input.flagChanges] flag-only
+     *   updates (the CONDSTORE delta path — no envelope refetch). Applied inside
+     *   the same transaction so a delta can never land without its cursor.
      * @param {number[]} [input.vanished] uids to delete (gone server-side)
      * @param {boolean} [input.purge] drop every existing row first (UIDVALIDITY roll / --full)
      * @param {object} input.cursor `{ uidValidity, uidNext, highestModseq, lastSyncedAt }`
      */
-    syncFolder: ({ account, folder, messages = [], vanished = [], purge = false, cursor }) => {
+    syncFolder: ({ account, folder, messages = [], flagChanges = [], vanished = [], purge = false, cursor }) => {
       db.exec('BEGIN IMMEDIATE');
       try {
         if (purge) deleteFolderMessages.run(account, folder);
@@ -218,6 +225,19 @@ export function openStore({ path } = {}) {
             m.date ?? null,
             JSON.stringify(m.flags ?? []),
             m.hasAttachment ? 1 : 0,
+          );
+        }
+
+        // Flag deltas touch only `flags`, leaving envelope fields alone — a
+        // message whose \Seen changed has not otherwise changed, and an upsert
+        // here would need a full envelope we deliberately did not fetch.
+        for (const ch of flagChanges) {
+          updateFlagsRow.run(
+            JSON.stringify(ch.flags ?? []),
+            account,
+            folder,
+            Number(cursor.uidValidity),
+            Number(ch.id),
           );
         }
 

@@ -352,10 +352,36 @@ real server-side event. `reset` also warns on stderr.
   than trusting stored flags — correct if slower. `highest_modseq` is deliberately stored as `null`:
   recording one now would let Phase 3 assume a delta window this phase never actually reconciled.
 
-### Phase 3 — Incremental refinement
-CONDSTORE `changedSince` for flag deltas, plus the **vanished-message reconciliation** from step 5.
-Gate on the capability being advertised, falling back to the Phase-2 behavior otherwise.
-- This is the phase where the store stops being "a cache that grows" and becomes a real mirror.
+### Phase 3 — Incremental refinement ✅ DONE
+CONDSTORE `changedSince` for flag deltas plus real vanished-message reconciliation. This is where
+the store stops being "a cache that grows" and becomes a real mirror.
+
+**Landed:**
+- `hasCondstore()` reads `client.enabled`, the **post-`ENABLE`** set — what the server actually
+  negotiated, not what `CAPABILITY` merely advertised. Only the former makes a modseq cursor
+  trustworthy.
+- `fetchFlagChanges({ folder, sinceModseq })` — one CONDSTORE fetch returning only touched messages.
+  It reports `supported: false` rather than an empty list when CONDSTORE is absent, so the caller can
+  never mistake "unsupported" for "nothing changed".
+- `listUids({ folder })` — a bare `SEARCH ALL`, no FETCH. **CONDSTORE reports modifications and says
+  nothing about deletions** (that is QRESYNC), so the only reliable way to find vanished mail is to
+  ask which uids still exist and diff. One round-trip returning integers.
+- `store.syncFolder()` gains `flagChanges`, applied **inside the same transaction** as rows and
+  cursor, touching only the `flags` column — a message whose `\Seen` moved has not otherwise
+  changed, and an upsert would need a full envelope we deliberately did not fetch.
+- Three flag modes, reported as `flagMode`: `condstore` (delta), `refetch` (no CONDSTORE — re-read
+  the folder), `full` (fresh pass, every row rewritten anyway). `sync run` labels the re-read case
+  in its output, since it is the difference between a cheap and an expensive sync and is a property
+  of the *server*, not of anything the user did.
+
+**The load-bearing guard, mutation-checked:** a modseq cursor is stored **only when the delta path
+was actually usable**. Recording one while flags came from a re-read would make the *next* sync
+assume a delta window it never reconciled — silently skipping every flag change in between.
+Removing that condition fails exactly the cursor test.
+
+Phase 2's known gap is closed: an incremental pass now detects deletions below the cursor. The
+non-CONDSTORE path reuses its whole-folder re-read as the uid census rather than paying for a second
+scan.
 
 ### Phase 4 — `--cached` reads
 Branch `emails list`/`search` behind the `ctx` seam. `sync status` and `sync clear`.

@@ -43,6 +43,12 @@ export function createTransport(account) {
     statusOf: async (folder) => (await session()).statusOf(folder),
     /** @param {object} [opts] envelopes + the window's uid set, for a sync pass */
     fetchForSync: async (opts) => (await session()).fetchForSync(opts),
+    /** @returns {Promise<boolean>} did the server negotiate CONDSTORE? */
+    hasCondstore: async () => (await session()).hasCondstore(),
+    /** @param {object} [opts] flags changed since a modseq (CONDSTORE delta) */
+    fetchFlagChanges: async (opts) => (await session()).fetchFlagChanges(opts),
+    /** @param {object} [opts] every uid in a folder — one SEARCH, for vanished detection */
+    listUids: async (opts) => (await session()).listUids(opts),
 
     // -- threads (strategy read from the profile — D6) ------------------------
     /** @param {object} [opts] */
