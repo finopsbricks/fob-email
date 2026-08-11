@@ -7,6 +7,8 @@
  * @property {string} name        leaf name
  * @property {string|null} specialUse  e.g. "\\Sent", "\\Drafts", "\\Trash"
  * @property {boolean} subscribed
+ * @property {boolean} [selectable] false for `\Noselect` hierarchy containers
+ *   (e.g. Gmail's "[Gmail]"), which LIST returns but SELECT rejects.
  */
 
 export {};

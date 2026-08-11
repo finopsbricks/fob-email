@@ -370,6 +370,11 @@ export async function connectSession(account) {
         name: b.name,
         specialUse: b.specialUse || null,
         subscribed: b.subscribed ?? false,
+        // `\Noselect` marks a pure hierarchy container (Gmail's "[Gmail]"), which
+        // LIST returns but SELECT rejects. imapflow folds `\NonExistent` into the
+        // same flag, so one check covers both. `sync run --all-folders` needs this
+        // to skip them rather than fail on them.
+        selectable: !(b.flags?.has?.('\\Noselect') ?? false),
       }));
     },
 

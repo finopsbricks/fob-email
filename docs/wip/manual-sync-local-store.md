@@ -1,6 +1,10 @@
 # Manual Sync — a user-triggered local mirror
 
-## Status: DRAFT — plan for review; not started. Phases below are the proposed order.
+## Status: IMPLEMENTED — Phases 0–5 all landed. 146 tests, typecheck clean.
+
+**Not yet verified against a live IMAP server.** Every test here runs against fake transports and
+real CLI processes; no account was configured in the environment this was built in. The protocol
+assumptions worth exercising first on a real mailbox are listed under [Open questions](#open-questions).
 
 Add a **user-triggered** `fob-email sync` that mirrors envelopes from the server into a local SQLite
 store, so reads (`emails list/search`, `threads list`, `folders list`) can be served locally and
@@ -46,17 +50,17 @@ keep working with no store at all.
 
 ## Decisions to Confirm Before Building
 
-These are the open questions from the spark-comparison WIP, now forced by this work. **Marked
-`PROPOSED` = my recommendation, not yet confirmed.** Each is called out at the phase that depends
-on it.
+These were the open questions from the spark-comparison WIP, forced by this work. **All five are now
+confirmed and shipped**; each is annotated with the phase that landed it. The rationale is kept in
+full because it explains why the built behavior is what it is.
 
-### S1 — Freshness contract: `--cached` is opt-in; live stays the default `PROPOSED`
+### S1 — Freshness contract: `--cached` is opt-in; live stays the default ✅ **CONFIRMED — shipped in Phase 4**
 The footgun a local mirror introduces is *silently serving stale mail*, which is a correctness
 problem for fin-ops. Three candidate defaults were considered:
 
 | Option | Behavior | Verdict |
 |---|---|---|
-| **Cached opt-in** | Reads stay live unless `--cached` is passed | **PROPOSED** |
+| **Cached opt-in** | Reads stay live unless `--cached` is passed | **CHOSEN** |
 | Cached default + `--live` escape | Reads serve local; `--live` bypasses | Rejected for v1 — silently changes existing behavior for every current caller |
 | Auto-validate per read | One `STATUS` round-trip, serve local if unchanged | Deferred — good, but it's an *automatic* refresh and this WIP is "manual only" |
 
@@ -68,14 +72,14 @@ The auto-validating read (a single `STATUS` comparing `uidNext`/`uidValidity`/`h
 a local read if unchanged) is the natural **v2** default once the store has proven itself. Noting it
 here so the schema below carries the columns it needs — it costs nothing now and avoids a migration.
 
-### S2 — Store scope: envelopes + flags only `PROPOSED`
+### S2 — Store scope: envelopes + flags only ✅ **CONFIRMED — shipped in Phase 1**
 Store what `emails list`/`search` and `threads list` render: id, uid, uidValidity, messageId,
 from/to, subject, date, flags, hasAttachment, plus the reference headers threads need. **No bodies,
 no snippets** in v1 — bodies dominate store size and initial sync time, and `emails show` on a live
 fetch is already acceptable (it's one message, not N). Deferring bodies also defers the FTS5
 question entirely.
 
-### S3 — Ids: cached reads keep exposing the IMAP UID `PROPOSED`
+### S3 — Ids: cached reads keep exposing the IMAP UID ✅ **CONFIRMED — shipped in Phase 1**
 Tempting to issue a stable local id (D4's per-folder-UID friction is real "UID-model tax"). But
 introducing a *second* id namespace while the live path still speaks UIDs means every command must
 disambiguate which kind of id it got, and a cached id could be handed to a live command that can't
@@ -118,7 +122,7 @@ runtime lacks it, `sync` errors with a clear message and every live path keeps w
 That preserves the Node-18 floor for the 95% of usage that never syncs. **Needs confirmation** —
 this is the one choice here with real distribution consequences.
 
-### S5 — Store location: `~/.fob/fob-email/sync.db` `PROPOSED`
+### S5 — Store location: `~/.fob/fob-email/sync.db` ✅ **CONFIRMED — shipped in Phase 1**
 Alongside `config.yml` in the existing `CONFIG_DIR` (`src/config.js:32`), so the family keeps one
 backup/chmod/delete surface. Honors the existing `FOB_EMAIL_CONFIG_DIR` override, which tests
 already use. Mode `0600` — envelopes contain subjects, addresses, and correspondence metadata, so
@@ -227,14 +231,17 @@ data gap, which is worse than staleness because nothing reports it.
 Following the family grammar (`fob-email <resource> <action>`, `src/cli/index.js`):
 
 ```
-fob-email sync run     [--account <name>] [--folder <path>] [--all-folders] [--full]
-fob-email sync status  [--account <name>] [--json]
-fob-email sync clear   [--account <name>] [--folder <path>]
+fob-email sync run     [--account <name>] [--folder <path>] [--all-folders] [--all-accounts]
+                       [--full] [--limit <n>] [--json]
+fob-email sync status  [--account <name>] [--folder <path>] [--all-accounts] [--json]
+fob-email sync clear   [--account <name>] [--folder <path>] --yes [--json]
 ```
 
 - `sync run` — the trigger. Default scope: **INBOX of the current account** (the conservative
-  default; `--all-folders` opts into everything `listFolders()` returns). `--full` forces a resync
-  from scratch, ignoring stored cursors — the escape hatch when a mirror is suspected wrong.
+  default; `--all-folders` opts into every *selectable* folder `listFolders()` returns, and
+  `--all-accounts` into every configured account — the two compose). `--full` forces a resync from
+  scratch, ignoring stored cursors — the escape hatch when a mirror is suspected wrong. `--limit`
+  caps a first/full pull to the newest N.
 - `sync status` — per folder: last synced at, message count, whether CONDSTORE incremental is in
   use, and **how stale the mirror is**. This is what makes `--cached` an honest promise.
 - `sync clear` — drop mirrored rows. The store is disposable by definition (it can always be
@@ -410,9 +417,36 @@ fails exactly two tests: the resource-level throw and the CLI-level "errors inst
 This is **S1** made real: `--cached` that quietly hit the network would be meaningless for the
 scripting case the flag exists to serve.
 
-### Phase 5 — Multi-folder + multi-account
-`--all-folders`, and syncing several configured accounts in one run (`accountNames()` already
-exists in `src/config.js:152`). Still strictly manual.
+### Phase 5 — Multi-folder + multi-account ✅ DONE
+`sync run --all-folders` and `--all-accounts`, composable. Still strictly manual — these widen
+what one invocation covers, they do not make sync automatic.
+
+**Landed:**
+- `sync.runAll({ folders?, full, limit })` on the resource. The single-folder algorithm was hoisted
+  into a shared `syncOne()` closure that both `run` and `runAll` call, so multi-folder sync cannot
+  drift from single-folder sync — there is one algorithm, not two.
+- `listFolders()` now reports `selectable`, from the LIST `\Noselect` flag (imapflow folds
+  `\NonExistent` into it, so one check covers both). `--all-folders` skips those containers —
+  Gmail's `[Gmail]` is the canonical one, present in LIST but rejected by SELECT.
+- Multi-account lives in the **CLI**, not the resource: a client is bound to one account's
+  credentials, so "every account" is necessarily a loop over clients. Each account's connection is
+  closed before the next opens — syncing ten mailboxes must not hold ten sockets.
+- `sync status --all-accounts` adds an ACCOUNT column. It reads only the store, so it opens no
+  connection and works with the network down.
+- `--json` shape: a single-folder, single-account run stays the **flat object it always was**, so
+  existing scripts keep parsing; only the multi forms nest. The human format switches on the *flags
+  the user passed*, not on how many folders came back — otherwise the same command would change
+  output shape depending on the server's folder list.
+
+**The two load-bearing rules, both mutation-checked:**
+1. **Sequential, not parallel.** An IMAP connection has exactly one selected mailbox; concurrent
+   syncs on one client would interleave SELECTs and read from whichever folder happened to be
+   current. Replacing the loop with `Promise.all` fails the concurrency test (`maxInFlight` 1 → 3).
+   This is a protocol constraint, not a tuning choice.
+2. **One folder's failure does not abort the others.** A permission error or a folder deleted
+   between LIST and SELECT is local to that folder; the other twenty still deserve to sync. Failures
+   are collected, reported on stderr after the results, and set a non-zero exit code so a caller can
+   tell partial from complete. Removing the per-folder `try` fails three tests.
 
 ---
 
@@ -440,17 +474,34 @@ cross-account unified inbox, retention/pruning, and any form of background or sc
 
 ## Open Questions
 
-- **S4 is the one blocking choice** — `node:sqlite` (zero deps, experimental, Node ≥22) vs.
-  `better-sqlite3` (stable, native build) vs. optional-capability. This determines whether the
-  `engines` floor moves, so it should be settled before Phase 1.
-- Should `sync run` with no prior state sync the **whole folder** or only the last N messages? A
-  first sync of a large mailbox could be very slow; a `--limit`/`--since` bound on the initial pull
-  may be the humane default.
-- Does `--cached` belong on `threads list` in v1, given thread summaries aren't materialized? (It
-  can be served from `thread_id`/`refs` at read time, but that's reconstruction against the store
-  rather than the network — faster, still not free.)
+**Resolved during implementation:** S4 (→ `node:sqlite`, engines `>=22.5.0`).
+
+**To settle against a real mailbox** — the assumptions no fake transport can test:
+
+- **Does a first sync of a large mailbox need a default bound?** `--limit` exists and is honored
+  (with `windowFrom` correctly preventing the capped window from deleting older rows), but the
+  default is still "everything". Whether that is humane depends on real fetch throughput against a
+  real 50k-message Gmail folder — the one number this work has never measured.
+- **Does `uid N:*` behave as assumed everywhere?** The cursor logic relies on IMAP always matching
+  the highest existing uid even when none are ≥ N, which `fetchForSync` compensates for by filtering
+  below the cursor. Verified against the spec and the fake; not against Dovecot/Gmail/Fastmail.
+- **Is `client.enabled` populated as expected after ENABLE?** `hasCondstore()` reads the negotiated
+  set rather than advertised `CAPABILITY`. If a server populates it differently, sync silently falls
+  back to the (correct but expensive) re-read path — a performance bug that no test would catch.
+- **Do `\Noselect` containers actually carry the flag?** `--all-folders` skips them on the LIST
+  flag. A server that omits it would surface the container as a per-folder failure — visible and
+  non-fatal by design, but noisy.
+
+**Still genuinely open (product questions, not verification):**
+
+- Does `--cached` belong on `threads list`, given thread summaries aren't materialized? (It can be
+  served from `thread_id`/`refs` at read time, but that's reconstruction against the store rather
+  than the network — faster, still not free.)
 - Should `sync` participate in the family's `config accounts` refresh flow (i.e. does adding an
   account offer an initial sync), or stay entirely separate?
+- Is the auto-validating read (S1's noted v2 — one `STATUS`, serve local if unchanged) worth
+  building now that the schema already carries the columns for it? It is the natural default, but
+  it is an *automatic* refresh, which this WIP deliberately excluded.
 
 ## Related Files
 

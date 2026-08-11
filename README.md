@@ -85,6 +85,11 @@ fob-email folders list
 fob-email folders create   <name>                     # e.g. Invoices/2026
 fob-email folders rename   <name> --to <new>
 fob-email folders delete   <name> --yes
+
+# sync (local mirror)
+fob-email sync run         [--folder INBOX] [--all-folders] [--all-accounts] [--full] [--limit N]
+fob-email sync status      [--folder X] [--all-accounts] [--json]
+fob-email sync clear       [--folder X] --yes
 ```
 
 Scripting stays clean with `--json` + the pure filter:
@@ -92,6 +97,37 @@ Scripting stays clean with `--json` + the pure filter:
 ```
 fob-email emails list --json | fob-email emails filter --from tally --has-attachment
 ```
+
+### Local mirror (`sync`)
+
+`sync` mirrors envelopes into a local SQLite store so reads can be served without a round-trip.
+Two properties define it:
+
+- **Manual.** There is no daemon, no IDLE, no background refresh, and no auto-sync-on-read. The
+  mirror updates when you run `sync run`, and at no other time.
+- **Unidirectional** ([D7](docs/decisions/0001-unidirectional-sync.md)). Data flows server → local
+  only. Nothing is ever queued or pushed back, so a sync that is interrupted or fails can leave the
+  mirror stale but can never leave the mailbox wrong.
+
+Reads stay **live by default** — the mirror is purely additive and no existing command changes
+behavior. Pass `--cached` to read locally instead:
+
+```
+fob-email sync run --all-folders
+fob-email emails list --cached --folder INBOX
+fob-email emails search --cached --from aws --since 2026-01-01
+fob-email sync status                    # what is mirrored, and how stale
+```
+
+A `--cached` read **never silently falls back to live**: if the folder was never synced it errors
+and names the `sync run` that fixes it. Staleness (`(cached — synced 3h ago)`) prints on stderr, so
+`--json` stdout stays pipe-clean. The mirror stores envelopes and flags, not bodies — so
+`emails show` is always live, and `search --cached` refuses `--query` (full-text needs the server)
+rather than quietly narrowing to a subject match.
+
+The store lives beside your config (`~/.fob/fob-email/sync.db`, mode 0600) and is disposable —
+`sync clear` drops it and the next `sync run` rebuilds it. Requires Node ≥22.5 for `node:sqlite`;
+every live path works without it.
 
 ## Library
 
@@ -114,8 +150,24 @@ try {
 ```
 
 Namespaces: `emails` (list, search, get, download, mark, move, delete, send), `threads` (list, show),
-`drafts` (list, create, edit, delete, send), `folders` (list, create, rename, delete). Plus one-shot
-helpers `listEmails` / `readEmail` / `getIdentity` / `getProfile` and the pure `filterEmails`.
+`drafts` (list, create, edit, delete, send), `folders` (list, create, rename, delete), and `sync`
+(run, runAll, read, status, clear). Plus one-shot helpers `listEmails` / `readEmail` /
+`getIdentity` / `getProfile` and the pure `filterEmails`.
+
+`sync` opens the store lazily, so a client that never syncs never touches SQLite:
+
+```js
+const mbox = fobEmail('gmail');
+try {
+  await mbox.sync.runAll();                              // pull every selectable folder
+  const { data, syncedAt } = mbox.sync.read({ folder: 'INBOX', unseen: true });
+} finally {
+  await mbox.close();
+}
+```
+
+`sync.read()` is synchronous (SQLite is) and throws if the folder was never synced — it does not
+fall back to the network.
 
 ## Self-describing profiles
 

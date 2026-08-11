@@ -18,16 +18,21 @@ export function buildSyncSubcommands(yargs) {
     .usage('$0 sync <action> [options]')
     .command(
       'run',
-      'Pull a folder into the local mirror',
+      'Pull folders into the local mirror',
       (y) =>
         localOptions(y)
           .option('folder', { describe: 'Folder to sync', type: 'string', default: 'INBOX' })
+          .option('all-folders', { describe: 'Sync every selectable folder', type: 'boolean' })
+          .option('all-accounts', { describe: 'Sync every configured account', type: 'boolean' })
           .option('full', { describe: 'Ignore stored cursors and resync from scratch', type: 'boolean' })
           .option('limit', {
             describe: 'On a first/full sync, mirror only the newest N messages',
             type: 'number',
           })
           .option('account', { describe: 'Configured account name', type: 'string' })
+          // No `.conflicts('folder', 'all-folders')`: `--folder` carries a
+          // default, so yargs would see it as always-set and reject every
+          // `--all-folders` run. `--all-folders` simply wins in the handler.
           .option('json', { describe: 'Output raw JSON', type: 'boolean' }),
       safe(syncRunHandler),
     )
@@ -37,6 +42,7 @@ export function buildSyncSubcommands(yargs) {
       (y) =>
         localOptions(y)
           .option('folder', { describe: 'Limit to one folder', type: 'string' })
+          .option('all-accounts', { describe: 'Show every configured account', type: 'boolean' })
           .option('account', { describe: 'Configured account name', type: 'string' })
           .option('json', { describe: 'Output raw JSON', type: 'boolean' }),
       safe(syncStatusHandler),
