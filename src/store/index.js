@@ -174,6 +174,35 @@ export function openStore({ path } = {}) {
     listMessages: ({ account, folder, limit = 50 }) =>
       selectMessages.all(account, folder, limit).map(toEnvelope),
 
+    /**
+     * Cached search — the local answer to `emails list`/`search`.
+     *
+     * Filtering happens in SQL rather than over a fetched page so `limit` means
+     * "N matches" and not "N rows, some of which match". `unseen` reads the JSON
+     * flags column with a LIKE, which is exact enough here: IMAP flag names are
+     * backslash-prefixed atoms, so `"\\Seen"` cannot collide with a keyword.
+     */
+    searchMessages: ({ account, folder, limit = 50, unseen = false, from, subject, since } = {}) => {
+      const where = ['account = ?', 'folder = ?'];
+      const args = [account, folder];
+      if (unseen) where.push(`flags NOT LIKE '%"\\\\Seen"%'`);
+      if (from) {
+        where.push('(LOWER(COALESCE(from_addr, \'\')) LIKE ? OR LOWER(COALESCE(from_name, \'\')) LIKE ?)');
+        args.push(`%${String(from).toLowerCase()}%`, `%${String(from).toLowerCase()}%`);
+      }
+      if (subject) {
+        where.push("LOWER(COALESCE(subject, '')) LIKE ?");
+        args.push(`%${String(subject).toLowerCase()}%`);
+      }
+      if (since) {
+        where.push('date >= ?');
+        args.push(String(since));
+      }
+      const sql =
+        `SELECT * FROM messages WHERE ${where.join(' AND ')} ORDER BY date DESC, uid DESC LIMIT ?`;
+      return db.prepare(sql).all(...args, limit).map(toEnvelope);
+    },
+
     /** Mirrored uids for a folder under one uidValidity (vanished-row reconciliation). */
     uidsIn: ({ account, folder, uidValidity }) =>
       selectUids.all(account, folder, uidValidity).map((r) => Number(r.uid)),

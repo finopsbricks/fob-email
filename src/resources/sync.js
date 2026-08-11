@@ -23,6 +23,7 @@
 /**
  * @typedef {Object} SyncApi
  * @property {(opts?: object) => Promise<object>} run
+ * @property {(opts?: object) => object} read
  * @property {(opts?: object) => Promise<object[]>} status
  * @property {(opts?: object) => Promise<object>} clear
  */
@@ -159,6 +160,35 @@ export function buildSync(ctx, store, { account = 'default', now = () => new Dat
         uidValidity,
         uidNext: status.uidNext,
         syncedAt: now(),
+      };
+    },
+
+    /**
+     * Serve a read from the mirror.
+     *
+     * **Never falls back to live.** A `--cached` read that silently went to the
+     * network would make the flag meaningless for the scripting case it exists
+     * to serve — the caller asked for local data and must be told plainly if
+     * there is none, rather than being handed a slow answer they didn't ask for.
+     * The error names the fix.
+     *
+     * @param {{ folder?: string, limit?: number, unseen?: boolean, from?: string,
+     *           subject?: string, since?: string }} [opts]
+     */
+    read: ({ folder = 'INBOX', ...filters } = {}) => {
+      const state = store.getFolder({ account, folder });
+      if (!state) {
+        throw new Error(
+          `No local copy of "${folder}" for account "${account}". ` +
+            `Run \`fob-email sync run --folder ${folder}\` first, or drop --cached to read live.`,
+        );
+      }
+      return {
+        data: store.searchMessages({ account, folder, ...filters }),
+        uidValidity: state.uidValidity,
+        folder,
+        cached: true,
+        syncedAt: state.lastSyncedAt,
       };
     },
 

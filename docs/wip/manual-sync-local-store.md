@@ -383,9 +383,32 @@ Phase 2's known gap is closed: an incremental pass now detects deletions below t
 non-CONDSTORE path reuses its whole-folder re-read as the uid census rather than paying for a second
 scan.
 
-### Phase 4 — `--cached` reads
-Branch `emails list`/`search` behind the `ctx` seam. `sync status` and `sync clear`.
-- Confirms **S1**. Reads must error, not silently fall back, on an unsynced folder.
+### Phase 4 — `--cached` reads ✅ DONE
+`emails list` and `emails search` gain `--cached`, served from the mirror. (`sync status` and
+`sync clear` landed early, in Phase 2.)
+
+**Landed:**
+- `sync.read()` — the mirror's read verb. Synchronous, because SQLite is; the network-shaped
+  `await` that every live path carries would be a lie here.
+- `store.searchMessages()` filters **in SQL**, so `limit` means "N matches" rather than "N rows
+  scanned, then filtered" — the latter would drop matches that exist and silently under-report.
+  `unseen` matches on the quoted system flag so a user keyword like `NotSeenByMe` cannot be
+  mistaken for `\Seen`.
+- `toEnvelope(row)` emits exactly the shape `engine/imap.js` produces, so `emitEnvelopes()`,
+  `--json`, and the `filter` pipe cannot tell a cached row from a live one. That equivalence is
+  what makes `--cached` a flag rather than a second output format.
+- Staleness prints to **stderr** (`(cached — synced 3h ago)`), never stdout, and is suppressed
+  under `--json` — a mirror is only trustworthy when its age is visible at the point of use, but
+  not at the cost of a pipe-clean stdout.
+- `search --cached` **refuses `--query`** rather than quietly matching subject-only. The mirror
+  holds envelopes, not bodies (S2); silently narrowing a full-text search returns fewer results
+  than asked for with no indication anything was dropped.
+
+**The load-bearing guard, mutation-checked:** `read()` throws — naming the exact `sync run` command
+that fixes it — when the folder was never synced. Replacing that throw with a fallback to live
+fails exactly two tests: the resource-level throw and the CLI-level "errors instead of falling back".
+This is **S1** made real: `--cached` that quietly hit the network would be meaningless for the
+scripting case the flag exists to serve.
 
 ### Phase 5 — Multi-folder + multi-account
 `--all-folders`, and syncing several configured accounts in one run (`accountNames()` already

@@ -34,6 +34,7 @@ export function buildEmailsSubcommands(yargs) {
           .option('unseen', { describe: 'Only unread messages', type: 'boolean' })
           .option('limit', { describe: 'Max messages', type: 'number', default: 50 })
           .option('fields', { describe: 'Columns (comma-separated)', type: 'string' })
+          .option('cached', { describe: 'Read the local mirror (see `sync run`)', type: 'boolean' })
           .option('json', { describe: 'Output raw JSON', type: 'boolean' }),
       safe(listEmailsHandler),
     )
@@ -49,6 +50,7 @@ export function buildEmailsSubcommands(yargs) {
           .option('since', { describe: 'On/after date (YYYY-MM-DD)', type: 'string' })
           .option('limit', { describe: 'Max messages', type: 'number', default: 50 })
           .option('fields', { describe: 'Columns (comma-separated)', type: 'string' })
+          .option('cached', { describe: 'Read the local mirror (no body search)', type: 'boolean' })
           .option('json', { describe: 'Output raw JSON', type: 'boolean' }),
       safe(searchEmailsHandler),
     )
