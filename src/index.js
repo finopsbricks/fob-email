@@ -21,7 +21,7 @@ export { resolveAccount } from './config.js';
  *
  * Connections are lazy; the caller must `close()` (or use the one-shot helpers).
  *
- *   import { fobEmail } from '@fob/email';
+ *   import { fobEmail } from '@finopsbricks/fob-email';
  *   const mbox = fobEmail('work');
  *   try { const { data } = await mbox.emails.list({ unseen: true }); }
  *   finally { await mbox.close(); }

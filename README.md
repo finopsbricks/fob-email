@@ -1,10 +1,10 @@
-# @fob/email
+# @finopsbricks/fob-email
 
 Email over IMAP/SMTP (`imapflow` + `nodemailer`) as **objects you read and modify** — emails,
 threads, drafts, folders — not IMAP internals. A 2-in-1 wrapper, usable two ways over the same code:
 
 - **CLI** — `fob-email <resource> <action> [options]`, familiar `gh`/`docker`-style grammar
-- **import** — `import { fobEmail } from '@fob/email'`; the CLI and the library call the *same*
+- **import** — `import { fobEmail } from '@finopsbricks/fob-email'`; the CLI and the library call the *same*
   `src/resources/` layer, so they never drift.
 
 ```
@@ -135,7 +135,7 @@ every live path works without it.
 Connections are lazy; `close()` when done (or use the one-shot helpers).
 
 ```js
-import { fobEmail } from '@fob/email';
+import { fobEmail } from '@finopsbricks/fob-email';
 
 const mbox = fobEmail('gmail');
 try {
