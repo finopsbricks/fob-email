@@ -13,6 +13,8 @@
 
 import yargs from 'yargs';
 
+import { safe } from './_helpers.js';
+import { gettingStartedHandler } from './getting-started.js';
 import { buildEmailsSubcommands } from './emails/index.js';
 import { buildThreadsSubcommands } from './threads/index.js';
 import { buildDraftsSubcommands } from './drafts/index.js';
@@ -24,6 +26,12 @@ export function run(argv) {
   return yargs(argv)
     .scriptName('fob-email')
     .usage('$0 <resource> <action> [options]')
+    .command(
+      'getting-started',
+      'Print setup instructions (skips if an account exists)',
+      (y) => y,
+      safe(gettingStartedHandler),
+    )
     .command('emails <action>', 'Read and manage emails', buildEmailsSubcommands)
     .command('threads <action>', 'Read conversations', buildThreadsSubcommands)
     .command('drafts <action>', 'Compose, save, and send drafts', buildDraftsSubcommands)

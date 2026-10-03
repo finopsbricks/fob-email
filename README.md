@@ -22,6 +22,10 @@ npm install
 
 ## Config
 
+New here? Run `fob-email getting-started` for the setup walkthrough, or see
+[docs/gmail-setup.md](docs/gmail-setup.md) for the full Gmail guide (app passwords,
+storage, troubleshooting).
+
 Resolved **flag > env > config file** (each step explicit; no silent fallback).
 
 **Workers** — set `FOB_EMAIL_ACCOUNTS` in the worker's `.env` to a JSON map `{ name: { imap, smtp } }`
@@ -58,6 +62,9 @@ stderr — pipes stay clean). Actions are always explicit: `fob-email emails` li
 never defaults to one.
 
 ```
+# setup
+fob-email getting-started                             # setup steps; says so if already configured
+
 # emails
 fob-email emails list      [--folder INBOX] [--unread] [--limit N] [--fields ...] [--json]
 fob-email emails search    <query> [--from X] [--subject Y] [--since YYYY-MM-DD] [--json]
@@ -195,11 +202,9 @@ logged or shown.
 ## Development
 
 ```
-npm test           # node --test
+npm test           # jest
 npm run typecheck  # tsc over the @ts-check'd modules (gradual checkJs)
 ```
 
 Architecture: `src/cli/` (presentation) → `src/resources/` (object ops, defined once) →
-`src/engine/` (IMAP/SMTP transport, functional factories) — see
-`docs/wip/resource-based-cli-alignment.md` for the design and the engineering-standards CLI docs it
-follows.
+`src/engine/` (IMAP/SMTP transport, functional factories).
