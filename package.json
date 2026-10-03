@@ -1,6 +1,6 @@
 {
   "name": "@finopsbricks/fob-email",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Email CLI and Node.js client over IMAP/SMTP: read, search, download attachments, file and send mail from the terminal, an AI agent or your code.",
   "homepage": "https://finopsbricks.com/cli/fob-email",
   "license": "Apache-2.0",
