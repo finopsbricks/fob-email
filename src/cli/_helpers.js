@@ -3,6 +3,7 @@
  */
 
 import { fobEmail } from '../index.js';
+import { TROUBLESHOOTING_DOCS_URL } from '../links.js';
 
 /**
  * Build an email client for the command's `--account` (or the default account).
@@ -14,6 +15,29 @@ export function clientFor(argv = {}) {
   return fobEmail(argv.account);
 }
 
+const CONNECTION_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET', 'EHOSTUNREACH']);
+
+/**
+ * A one-line, human-readable description of an error. imapflow reports a
+ * failed sign-in as a bare "Command failed" with the server's reason in
+ * `responseText`, so that case is spelled out and linked to the docs, as are
+ * network errors (host not found, refused, timed out).
+ * @param {any} err
+ */
+export function describeError(err) {
+  if (err?.authenticationFailed) {
+    const reason = err.responseText || err.serverResponseCode || err.message;
+    return (
+      `Sign-in failed (${reason}). Most providers need an app password, not your normal password. ` +
+      `See ${TROUBLESHOOTING_DOCS_URL}#sign-in-fails`
+    );
+  }
+  if (CONNECTION_CODES.has(err?.code)) {
+    return `${err.message}. Check the host name and port. See ${TROUBLESHOOTING_DOCS_URL}#connection-errors`;
+  }
+  return err?.message ?? String(err);
+}
+
 /**
  * Wrap a handler so unexpected exceptions exit cleanly without a stack trace.
  * Set FOB_DEBUG=1 to see the full stack.
@@ -23,7 +47,7 @@ export function safe(handler) {
     try {
       await handler(argv);
     } catch (err) {
-      console.error(`Error: ${err.message}`);
+      console.error(`Error: ${describeError(err)}`);
       if (process.env.FOB_DEBUG) console.error(err.stack);
       process.exit(1);
     }

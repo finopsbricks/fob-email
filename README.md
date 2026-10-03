@@ -1,210 +1,156 @@
-# @finopsbricks/fob-email
+# fob-email — Email CLI and client library
 
-Email over IMAP/SMTP (`imapflow` + `nodemailer`) as **objects you read and modify** — emails,
-threads, drafts, folders — not IMAP internals. A 2-in-1 wrapper, usable two ways over the same code:
+Read, search, download, file and send email from the terminal, from an AI agent, or from Node
+code, over IMAP and SMTP. One package, two ways in:
 
-- **CLI** — `fob-email <resource> <action> [options]`, familiar `gh`/`docker`-style grammar
-- **import** — `import { fobEmail } from '@finopsbricks/fob-email'`; the CLI and the library call the *same*
-  `src/resources/` layer, so they never drift.
+- **The CLI** (`fob-email`): list and search folders, download attachments, mark, move and
+  delete messages, work with threads, drafts and folders, and send mail. `--json` on every
+  command for scripts, and agent-friendly.
+  → [finopsbricks.com/cli/fob-email](https://finopsbricks.com/cli/fob-email)
+- **The library** (`import { fobEmail }`): the same operations as a Node client for scripts
+  and workers. The CLI calls the same code, so the two never drift.
+  → [Docs](https://finopsbricks.com/docs/email)
 
-```
-fob-email emails list --unread --from billing        # invoices waiting in the inbox
-fob-email emails download 1423 -o ./invoices/         # pull the attachments
-fob-email threads show 1423                            # the whole vendor conversation
-fob-email emails move 1423 --to Archive
-```
+Works with Gmail, Google Workspace, Yahoo, iCloud, Fastmail and other IMAP servers that accept
+a password. **Outlook.com and Microsoft 365 are not supported**: they require OAuth sign-in.
+
+Beta. Not affiliated with or endorsed by Google, Yahoo, Apple, Fastmail or Microsoft.
 
 ## Install
 
-```
-npm install
-```
-
-## Config
-
-New here? Run `fob-email getting-started` for the setup walkthrough, or see
-[docs/gmail-setup.md](docs/gmail-setup.md) for the full Gmail guide (app passwords,
-storage, troubleshooting).
-
-Resolved **flag > env > config file** (each step explicit; no silent fallback).
-
-**Workers** — set `FOB_EMAIL_ACCOUNTS` in the worker's `.env` to a JSON map `{ name: { imap, smtp } }`
-(one contract for one or many accounts):
-
-```
-FOB_EMAIL_ACCOUNTS={"gmail":{"imap":{"host":"imap.gmail.com","port":993,"user":"me@gmail.com","pass":"app-pw","tls":true},"smtp":{"host":"smtp.gmail.com","port":465,"user":"me@gmail.com","pass":"app-pw","secure":true}}}
+```bash
+npm install -g @finopsbricks/fob-email
+fob-email getting-started
 ```
 
-**CLI / hands-on** — a YAML file under the shared fob family root, `~/.fob/fob-email/config.yml`
-(override with `FOB_EMAIL_CONFIG_DIR`), enforced mode `0600`, managed by `config accounts`:
+Requires Node.js 22.13 or later. If you use the [`fob` dispatcher](https://www.npmjs.com/package/@finopsbricks/fob-cli),
+`fob email …` and `fob-email …` are the same command.
 
-```yaml
-current: gmail
-accounts:
-  gmail:
-    imap: { host: imap.gmail.com, port: 993, user: me@gmail.com, pass: app-pw, tls: true }
-    smtp: { host: smtp.gmail.com, port: 465, user: me@gmail.com, pass: app-pw, secure: true }
-    # server-probed, non-secret metadata (see "Self-describing profiles"):
-    address: me@gmail.com
-    provider: gmail
-    threadStrategy: thread-id
-    folders: { drafts: "[Gmail]/Drafts", sent: "[Gmail]/Sent Mail", trash: "[Gmail]/Trash", all: "[Gmail]/All Mail" }
+## Connect a mailbox
+
+You need your provider's IMAP server and an **app password**: a separate password you create
+in your account's security settings. Most providers reject your normal password over IMAP.
+
+| Provider | IMAP host | SMTP host | App password |
+| --- | --- | --- | --- |
+| Gmail / Google Workspace | `imap.gmail.com` | `smtp.gmail.com` | [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) (needs 2-Step Verification) |
+| Yahoo | `imap.mail.yahoo.com` | `smtp.mail.yahoo.com` | [Account Security](https://login.yahoo.com/account/security) → Generate app password |
+| iCloud | `imap.mail.me.com` | `smtp.mail.me.com` (port 587) | [account.apple.com](https://account.apple.com/) → App-Specific Passwords |
+| Fastmail | `imap.fastmail.com` | `smtp.fastmail.com` | Settings → Privacy & Security → Manage app passwords |
+
+```bash
+read -rs IMAP_PASS        # paste the app password; keeps it out of your shell history
+fob-email config accounts add personal \
+  --imap-host imap.gmail.com --imap-user you@gmail.com \
+  --imap-pass "$IMAP_PASS" --smtp-host smtp.gmail.com
+unset IMAP_PASS
+
+fob-email folders list    # proves sign-in works
 ```
 
-Select an account with `--account <name>` on any command (or `fobEmail('name')`); with no name the
-current/first account is used.
+- `--smtp-host` enables sending. SMTP reuses the IMAP username and password unless you pass
+  `--smtp-user` / `--smtp-pass`.
+- iCloud: the IMAP username is the part before `@`, and SMTP needs the full address and port
+  587: `--imap-user you --smtp-user you@icloud.com --smtp-port 587 --no-smtp-secure`.
+- `add` signs in once to check the password (`--no-verify` skips it). Adding an existing name
+  replaces it.
 
-## CLI
+Step-by-step guides per provider: [Providers](https://finopsbricks.com/docs/email/providers).
+Problems: [Troubleshooting](https://finopsbricks.com/docs/email/troubleshooting).
 
-Grammar is `fob-email <resource> <action> [target] [options]`. Output is **human-readable by
-default**; add `--json` to any read command for the raw payload (data on stdout, diagnostics on
-stderr — pipes stay clean). Actions are always explicit: `fob-email emails` lists its actions, it
-never defaults to one.
+## Use the CLI
 
-```
-# setup
-fob-email getting-started                             # setup steps; says so if already configured
+Grammar: `fob-email <resource> <action> [target] [options]`. Run `fob-email <resource> --help`
+for its actions, or `fob-email <resource> <action> --help` for flags.
 
-# emails
-fob-email emails list      [--folder INBOX] [--unread] [--limit N] [--fields ...] [--json]
-fob-email emails search    <query> [--from X] [--subject Y] [--since YYYY-MM-DD] [--json]
-fob-email emails show      <id> [--folder INBOX] [--json]
-fob-email emails download  <id> [-o DIR]              # save attachments (invoices/receipts)
-fob-email emails mark      <id> --read | --unread
-fob-email emails move      <id> --to <folder>
-fob-email emails delete    <id> --yes
-fob-email emails send      --to <addr> --subject <s> [--body <t> | --body-file F] [--attach F ...]
-fob-email emails filter    (stdin JSON → filtered JSON; pure, no connection)
-
-# threads (conversations)
-fob-email threads list     [--folder INBOX] [--json]
-fob-email threads show     <id> [--json]
-
-# drafts (compose lifecycle)
-fob-email drafts list
-fob-email drafts create    --to <addr> --subject <s> [--body <t> | --body-file F] [--attach F ...]
-fob-email drafts edit      <id> ...                   # replaces wholesale (append-new + delete-old)
-fob-email drafts delete    <id> --yes
-fob-email drafts send      <id>
-
-# folders
-fob-email folders list
-fob-email folders create   <name>                     # e.g. Invoices/2026
-fob-email folders rename   <name> --to <new>
-fob-email folders delete   <name> --yes
-
-# sync (local mirror)
-fob-email sync run         [--folder INBOX] [--all-folders] [--all-accounts] [--full] [--limit N]
-fob-email sync status      [--folder X] [--all-accounts] [--json]
-fob-email sync clear       [--folder X] --yes
+```bash
+fob-email emails list --unseen --limit 20
+fob-email emails search --from billing@vendor.example --since 2026-09-01
+fob-email emails show 1423
+fob-email emails download 1423 -o ./invoices
+fob-email emails move 1423 --to Invoices/2026
+fob-email threads show 1423
+fob-email emails send --to finance@example.com --subject "Invoices" --body-file summary.txt --attach invoices/INV-2291.pdf
 ```
 
-Scripting stays clean with `--json` + the pure filter:
+| Resource | Actions |
+| --- | --- |
+| `emails` | `list`, `search`, `show`, `download`, `mark`, `move`, `delete`, `send`, `filter` |
+| `threads` | `list`, `show` |
+| `drafts` | `list`, `create`, `edit`, `delete`, `send` |
+| `folders` | `list`, `create`, `rename`, `delete` |
+| `sync` | `run`, `status`, `clear` |
+| `config accounts` | `list`, `add`, `use`, `remove`, `refresh` (alias: `config profiles`) |
 
-```
-fob-email emails list --json | fob-email emails filter --from tally --has-attachment
-```
+- **IDs belong to a folder.** The ID in `emails list` is the message's IMAP UID in that folder:
+  pass the same `--folder` (default `INBOX`) when you use it.
+- **Reading doesn't mark messages as read.**
+- **`--json`** prints JSON on stdout; errors and notes go to stderr. `emails filter` filters a
+  JSON list from stdin offline: `fob-email emails list --json | fob-email emails filter --has-attachment`.
+- **Deletes need `--yes`.** `emails delete` removes the message permanently.
+- **`--account <name>`** picks a mailbox; `config accounts use` sets the default.
+- **Local sync** (`sync run`, then `--cached` on `emails list` / `search`) mirrors headers and
+  flags into a local SQLite database for fast, offline reads. It never runs on its own.
 
-### Local mirror (`sync`)
+Full guides: [Reading mail](https://finopsbricks.com/docs/email/cli/reading-mail),
+[Sending and changing mail](https://finopsbricks.com/docs/email/cli/changing-mail),
+[Output and scripting](https://finopsbricks.com/docs/email/cli/output-and-scripting),
+[AI agents](https://finopsbricks.com/docs/email/cli/ai-agents),
+[Command reference](https://finopsbricks.com/docs/email/cli/reference/setup).
 
-`sync` mirrors envelopes into a local SQLite store so reads can be served without a round-trip.
-Two properties define it:
-
-- **Manual.** There is no daemon, no IDLE, no background refresh, and no auto-sync-on-read. The
-  mirror updates when you run `sync run`, and at no other time.
-- **Unidirectional.** Data flows server → local
-  only. Nothing is ever queued or pushed back, so a sync that is interrupted or fails can leave the
-  mirror stale but can never leave the mailbox wrong.
-
-Reads stay **live by default** — the mirror is purely additive and no existing command changes
-behavior. Pass `--cached` to read locally instead:
-
-```
-fob-email sync run --all-folders
-fob-email emails list --cached --folder INBOX
-fob-email emails search --cached --from aws --since 2026-01-01
-fob-email sync status                    # what is mirrored, and how stale
-```
-
-A `--cached` read **never silently falls back to live**: if the folder was never synced it errors
-and names the `sync run` that fixes it. Staleness (`(cached — synced 3h ago)`) prints on stderr, so
-`--json` stdout stays pipe-clean. The mirror stores envelopes and flags, not bodies — so
-`emails show` is always live, and `search --cached` refuses `--query` (full-text needs the server)
-rather than quietly narrowing to a subject match.
-
-The store lives beside your config (`~/.fob/fob-email/sync.db`, mode 0600) and is disposable —
-`sync clear` drops it and the next `sync run` rebuilds it. Requires Node ≥22.5 for `node:sqlite`;
-every live path works without it.
-
-## Library
-
-`fobEmail(account)` binds one account into resource namespaces over a lazily-connected transport.
-Connections are lazy; `close()` when done (or use the one-shot helpers).
+## Use as a library
 
 ```js
 import { fobEmail } from '@finopsbricks/fob-email';
 
-const mbox = fobEmail('gmail');
+const mbox = fobEmail('personal'); // an account name, or { imap: {…}, smtp: {…} }
 try {
   const { data } = await mbox.emails.list({ unseenOnly: true, limit: 20 });
-  const msg = await mbox.emails.get(data[0].id);
-  await mbox.emails.move(data[0].id, 'Archive');
-  const thread = await mbox.threads.show(data[0].id);
-  await mbox.emails.send({ to: ['ops@acme.com'], subject: 'Hi', text: '...' });
+  const files = await mbox.emails.download(data[0].id, { folder: 'INBOX' });
+  await mbox.emails.move(data[0].id, 'Archive', { folder: 'INBOX' });
 } finally {
   await mbox.close();
 }
 ```
 
-Namespaces: `emails` (list, search, get, download, mark, move, delete, send), `threads` (list, show),
-`drafts` (list, create, edit, delete, send), `folders` (list, create, rename, delete), and `sync`
-(run, runAll, read, status, clear). Plus one-shot helpers `listEmails` / `readEmail` /
-`getIdentity` / `getProfile` and the pure `filterEmails`.
+Namespaces: `emails`, `threads`, `drafts`, `folders` and `sync`, plus `filterEmails`,
+`listEmails`, `readEmail` and `getProfile`. Passing an object skips the environment and config
+file entirely. See [Use the library](https://finopsbricks.com/docs/email/integration/library).
 
-`sync` opens the store lazily, so a client that never syncs never touches SQLite:
+## Credentials and configuration
 
-```js
-const mbox = fobEmail('gmail');
-try {
-  await mbox.sync.runAll();                              // pull every selectable folder
-  const { data, syncedAt } = mbox.sync.read({ folder: 'INBOX', unseen: true });
-} finally {
-  await mbox.close();
-}
+- **CLI:** `~/.fob/fob-email/config.yml`, written with mode 0600. The password is stored in
+  plain text, protected by file permissions. Override the folder with `FOB_EMAIL_CONFIG_DIR`.
+- **Workers and CI:** `FOB_EMAIL_ACCOUNTS`, a JSON map of `{ name: { imap, smtp } }`. When set,
+  it takes precedence over the config file. See `.env.example`.
+- **Local mirror:** `sync.db` next to the config file, mode 0600. Safe to delete.
+
+Credentials go only to your mail provider, never to FinOpsBricks.
+
+## Beta limits
+
+- Password and app-password sign-in only: no OAuth, so no Outlook.com, Microsoft 365, or
+  Google Workspace domains that block app passwords.
+- Search is IMAP search (keywords, sender, subject, date), not semantic.
+- No paging: lists return the newest messages up to `--limit` (default 50).
+- No reply or forward with threading headers; `drafts edit` replaces the whole draft.
+- Local sync is manual, stores headers and flags (not bodies), and hasn't yet been tested at
+  scale against every provider. Start a large mailbox with `sync run --limit`.
+- Passwords live in a plain YAML file (mode 0600), not your system keychain.
+
+Missing something? [Open an issue](https://github.com/finopsbricks/fob-email/issues).
+
+## Develop
+
+```bash
+npm install
+npm test           # jest (ESM); needs Node 22.13+
+npm run typecheck  # tsc over the @ts-check'd modules
 ```
 
-`sync.read()` is synchronous (SQLite is) and throws if the folder was never synced — it does not
-fall back to the network.
+Layers: `src/cli/` (commands) → `src/resources/` (each operation, defined once) →
+`src/engine/` (IMAP/SMTP transport). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Self-describing profiles
+## License
 
-Server behaviour is a **property of the account**, probed once and cached (never re-detected per
-call). `config accounts add`/`refresh` connect and record, as non-secret metadata:
-
-- `provider` — `gmail | outlook | fastmail | yahoo | generic` (host + capabilities)
-- `threadStrategy` — `thread-id` (Gmail `X-GM-EXT-1` / RFC 8474 `OBJECTID`) or `reconstruct`
-  (walk `References`/`In-Reply-To`); `threads` dispatches on this, no runtime cascade
-- `folders` — special-use paths (the Drafts folder `drafts` APPEND to, etc.)
-
-```
-fob-email config accounts add gmail \
-  --imap-host imap.gmail.com --imap-user me@gmail.com --imap-pass <app-pw> \
-  --smtp-host smtp.gmail.com                  # smtp user/pass default to the imap ones
-fob-email config accounts list                # table: current *, ADDRESS, PROVIDER, secrets never shown
-fob-email config accounts use work            # switch the current account
-fob-email config accounts refresh --all       # re-probe every profile (fixes drift)
-```
-
-`add` probes once to verify creds and cache the profile (`--no-verify` skips the network). `accounts`
-is an alias of the family-wide `profiles`. Credentials are written at mode `0600`; secrets are never
-logged or shown.
-
-## Development
-
-```
-npm test           # jest
-npm run typecheck  # tsc over the @ts-check'd modules (gradual checkJs)
-```
-
-Architecture: `src/cli/` (presentation) → `src/resources/` (object ops, defined once) →
-`src/engine/` (IMAP/SMTP transport, functional factories).
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

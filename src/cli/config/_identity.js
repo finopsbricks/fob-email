@@ -1,5 +1,6 @@
 import { getProfile } from '../../index.js';
 import { setAccountProfile } from '../../config.js';
+import { describeError } from '../_helpers.js';
 
 /**
  * Best-effort (D6): connect, probe the account's self-describing profile
@@ -15,7 +16,7 @@ export async function refreshProfile(name) {
       return profile;
     }
   } catch (err) {
-    console.error(`(could not verify '${name}': ${err.message})`);
+    console.error(`(could not verify '${name}': ${describeError(err)})`);
   }
   return null;
 }

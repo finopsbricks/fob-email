@@ -1,6 +1,6 @@
 /**
  * `fob-email getting-started` — an in-band setup walkthrough aimed at LLM agents
- * driving the CLI on a user's behalf. Mirrors `fob-stm getting-started`.
+ * driving the CLI on a user's behalf.
  *
  * It first checks for configured accounts: if one already exists, setup is done
  * and the command says so (naming the current account) rather than walking the
@@ -14,6 +14,7 @@
  */
 
 import { listAccounts } from '../config.js';
+import { CONNECT_DOCS_URL, PROVIDERS_DOCS_URL, TROUBLESHOOTING_DOCS_URL } from '../links.js';
 
 function alreadyConfigured({ current, accounts, path }) {
   const names = accounts.map((a) => a.name).join(', ');
@@ -66,7 +67,7 @@ function notConfigured({ path }) {
     '',
     '   --imap-port (993) and --smtp-port (465) already default to Gmail\'s ports.',
     '   Pass --smtp-host to enable sending; SMTP reuses the IMAP user/password',
-    '   unless you override them. Omit it for a read-only account.',
+    '   unless you override them. Without it the account can read but not send.',
     '',
     '   On success this verifies the credentials and caches the mailbox address,',
     '   provider, and thread strategy. Use --no-verify to skip the network.',
@@ -78,18 +79,25 @@ function notConfigured({ path }) {
     '',
     'Other providers',
     '',
-    '   Same command with your provider\'s IMAP/SMTP hosts. Most hosts that require',
-    '   2FA also require an app-specific password:',
+    '   Same command with your provider\'s IMAP/SMTP hosts, and an app password',
+    '   from the provider\'s security settings:',
     '',
-    '     Outlook / Microsoft 365   outlook.office365.com   smtp.office365.com (587, --no-smtp-secure)',
-    '     Fastmail                  imap.fastmail.com       smtp.fastmail.com',
-    '     Yahoo                     imap.mail.yahoo.com     smtp.mail.yahoo.com',
+    '     Yahoo      imap.mail.yahoo.com   smtp.mail.yahoo.com',
+    '     Fastmail   imap.fastmail.com     smtp.fastmail.com',
+    '     iCloud     imap.mail.me.com      smtp.mail.me.com (587, --no-smtp-secure)',
+    '                IMAP user is the part before @; pass --smtp-user with the full address.',
+    '',
+    '   Outlook.com, Hotmail and Microsoft 365 are not supported: they require',
+    '   OAuth sign-in, and fob-email signs in with a password.',
+    '',
+    `   Steps for each provider: ${PROVIDERS_DOCS_URL}`,
     '',
     `Credentials are stored at ${path} (mode 0600).`,
     'For workers/CI, set the FOB_EMAIL_ACCOUNTS env var instead — a JSON map of',
     '{ name: { imap, smtp } }, which takes precedence over the config file.',
     '',
-    'See docs/gmail-setup.md for the full Gmail walkthrough and troubleshooting.',
+    `Full guide: ${CONNECT_DOCS_URL}`,
+    `Troubleshooting: ${TROUBLESHOOTING_DOCS_URL}`,
   ];
   return lines.join('\n');
 }
