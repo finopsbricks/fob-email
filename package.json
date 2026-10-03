@@ -3,6 +3,22 @@
   "version": "0.1.1",
   "description": "Resource-based email CLI + importable client over IMAP/SMTP (emails, threads, drafts, folders).",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/finopsbricks/fob-email.git"
+  },
+  "bugs": {
+    "url": "https://github.com/finopsbricks/fob-email/issues"
+  },
+  "keywords": [
+    "email",
+    "imap",
+    "smtp",
+    "cli",
+    "gmail",
+    "finops",
+    "ai-agents"
+  ],
   "files": [
     "bin",
     "src",

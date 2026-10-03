@@ -7,8 +7,7 @@ import { fobEmail } from '../index.js';
 /**
  * Build an email client for the command's `--account` (or the default account).
  * The presentation layer's single seam to the resource layer — handlers call
- * `clientFor(argv).emails.*` and must `close()` it (a `finally`). Mirrors
- * fob-stm's `clientFor`.
+ * `clientFor(argv).emails.*` and must `close()` it (a `finally`).
  * @param {{ account?: string }} [argv]
  */
 export function clientFor(argv = {}) {

@@ -1,8 +1,7 @@
 // @ts-check
 /**
  * Shared formatting helpers for CLI output.
- * From the CLI standard's reference set (engineering-standards/cli/output-formatting.md):
- * humans read the default text; `--json` emits the raw payload. Data goes to
+ * Humans read the default text; `--json` emits the raw payload. Data goes to
  * stdout; these helpers never write — the handler decides where the string lands.
  */
 

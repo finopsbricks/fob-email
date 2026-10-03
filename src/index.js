@@ -13,8 +13,7 @@ export { filterEmails } from './domain/filter.js';
 export { resolveAccount } from './config.js';
 
 /**
- * The importable email client — the fob-stm `fobStm(creds)` analog for a
- * protocol tool. Binds one account's credentials into resource namespaces over a
+ * The importable email client. Binds one account's credentials into resource namespaces over a
  * lazily-connected transport. The CLI builds the same client (see
  * `src/cli/_helpers.js` `clientFor`) and calls these same namespaces, so the CLI
  * and the library can never drift — every op is defined once, in src/resources/.

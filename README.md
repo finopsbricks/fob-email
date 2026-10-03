@@ -105,7 +105,7 @@ Two properties define it:
 
 - **Manual.** There is no daemon, no IDLE, no background refresh, and no auto-sync-on-read. The
   mirror updates when you run `sync run`, and at no other time.
-- **Unidirectional** ([D7](docs/decisions/0001-unidirectional-sync.md)). Data flows server → local
+- **Unidirectional.** Data flows server → local
   only. Nothing is ever queued or pushed back, so a sync that is interrupted or fails can leave the
   mirror stale but can never leave the mailbox wrong.
 

@@ -78,7 +78,7 @@ const fullEmail = {
   id: 1423,
   messageId: '<abc@aws.com>',
   from: { name: 'AWS', addr: 'billing@aws.com' },
-  to: [{ name: null, addr: 'alex@cashflowy.io' }],
+  to: [{ name: null, addr: 'me@example.com' }],
   subject: 'Invoice INV-0412',
   date: '2026-07-24T10:23:01Z',
   text: 'Your invoice is attached.',

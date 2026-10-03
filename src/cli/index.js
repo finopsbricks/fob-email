@@ -3,7 +3,7 @@
  *
  *   fob-email <resource> <action> [target] [options]
  *
- * A resource/action grammar over the objects a finance FDE thinks in — emails,
+ * A resource/action grammar over the objects a finance team thinks in — emails,
  * folders, drafts — not IMAP internals. Human-readable output by default;
  * `--json` on every read command emits the raw payload (data on stdout,
  * diagnostics on stderr) so a shell pipeline or a worker consumes it cleanly.

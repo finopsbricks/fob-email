@@ -7,7 +7,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Build an IMAP SEARCH criteria object from the CLI flags. Keyword/header/date
- * only — IMAP has no semantic search (unlike a product like spark).
+ * only — IMAP has no semantic search.
  * @param {any} argv
  */
 function buildCriteria(argv) {

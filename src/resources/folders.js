@@ -3,7 +3,7 @@
  * The `folders` resource — every folder object-operation, defined once.
  *
  * `buildFolders(ctx)` binds the transport seam into a flat namespace; this is
- * what `fobEmail(account).folders` is. Full CRUD (D1): an FDE filing receipts
+ * what `fobEmail(account).folders` is. Full CRUD: someone filing receipts
  * wants `folders create Invoices/2026`, not just a read-only list.
  */
 

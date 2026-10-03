@@ -5,3 +5,9 @@ downloads/
 *.log
 coverage/
 junit.xml
+.claude/
+.DS_Store
+!.env.example
+# Internal planning notes, kept locally
+docs/wip/
+docs/decisions/
