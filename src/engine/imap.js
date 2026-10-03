@@ -63,9 +63,17 @@ export async function connectSession(account) {
     cfg.threadStrategy ||
     deriveProfile({ host: cfg.imap.host, capabilities: client.capabilities }).threadStrategy;
 
-  // The Drafts folder is a property of the account (D6): read the cached
-  // special-use path resolved at add/refresh; fall back to the conventional name.
-  const draftsFolder = () => (cfg.folders && cfg.folders.drafts) || 'Drafts';
+  // The Drafts folder is a property of the account (D6): use the special-use
+  // path cached at add/refresh. Accounts without one (added before it was
+  // cached, or from FOB_EMAIL_ACCOUNTS) resolve it once per session with a LIST,
+  // so Gmail's `[Gmail]/Drafts` is found; only a server that advertises no
+  // \Drafts folder falls back to the conventional name.
+  /** @type {string|null} */
+  let drafts_path = cfg.folders?.drafts ?? null;
+  const draftsFolder = async () => {
+    if (!drafts_path) drafts_path = mapSpecialFolders(await client.list()).drafts || 'Drafts';
+    return drafts_path;
+  };
 
   return {
     /**
@@ -333,30 +341,32 @@ export async function connectSession(account) {
     // -- drafts (the Drafts folder; IMAP messages are immutable, so `edit` is
     //    append-new + delete-old at the resource layer) -----------------------
     /** Envelopes in the Drafts folder. */
-    listDrafts: () =>
-      withFolder(draftsFolder(), null, async (c) => ({
+    listDrafts: async () => {
+      const folder = await draftsFolder();
+      return withFolder(folder, null, async (c) => ({
         data: await fetchEnvelopes(c, { all: true }, 100),
-        folder: draftsFolder(),
-      })),
+        folder,
+      }));
+    },
 
     /** APPEND a raw RFC 822 message to the Drafts folder with the \\Draft flag. */
     appendDraft: async (raw) => {
-      const folder = draftsFolder();
+      const folder = await draftsFolder();
       const res = await client.append(folder, raw, ['\\Draft']);
       return { id: res?.uid ?? null, folder, uidValidity: res?.uidValidity ?? null };
     },
 
     /** Delete a draft by id. */
-    deleteDraft: (id) =>
-      withFolder(draftsFolder(), null, async (c) => {
+    deleteDraft: async (id) =>
+      withFolder(await draftsFolder(), null, async (c) => {
         const ok = await c.messageDelete(id, { uid: true });
         if (!ok) throw new Error(`Draft not found: ${id}`);
         return { id, deleted: true };
       }),
 
     /** Raw source of a draft (for send). */
-    fetchDraftSource: (id) =>
-      withFolder(draftsFolder(), null, async (c) => {
+    fetchDraftSource: async (id) =>
+      withFolder(await draftsFolder(), null, async (c) => {
         const msg = await c.fetchOne(id, { uid: true, source: true }, { uid: true });
         if (!msg) throw new Error(`Draft not found: ${id}`);
         return msg.source;

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { resolveAccount } from '../config.js';
+import { TROUBLESHOOTING_DOCS_URL } from '../links.js';
 
 /**
  * A live SMTP transport — the only place that talks SMTP.
@@ -10,9 +11,10 @@ import { resolveAccount } from '../config.js';
  * override and validates the shape (via config.js's zod schema) before any
  * protocol traffic.
  *
- * SMTP is optional on an account: if no `smtp` block is configured, user/pass
- * fall back to the IMAP credentials (the common single-app-password case) and
- * the host must be supplied. `verify()` on connect surfaces a bad host/port up
+ * SMTP is optional on an account, but sending needs `smtp.host`: there is no
+ * fallback to the IMAP host, which is almost never an SMTP server and only
+ * produced a confusing connection error. User/pass fall back to the IMAP
+ * credentials (the common single-app-password case). `verify()` on connect surfaces a bad host/port up
  * front, not mid-send.
  *
  * @param {string|object} [account] account name, or a raw config object.
@@ -20,10 +22,16 @@ import { resolveAccount } from '../config.js';
 export async function connectMailer(account) {
   const cfg = resolveAccount(account);
   const smtp = cfg.smtp ?? {};
-  const host = smtp.host || cfg.imap.host;
+  const host = smtp.host;
   const user = smtp.user || cfg.imap.user;
   const pass = smtp.pass || cfg.imap.pass;
-  if (!host) throw new Error('No SMTP host configured for this account (set smtp.host).');
+  if (!host) {
+    throw new Error(
+      'Sending needs an SMTP server, and this account has none. ' +
+        'Add the account again with --smtp-host (for example smtp.gmail.com), or set smtp.host in FOB_EMAIL_ACCOUNTS. ' +
+        `See ${TROUBLESHOOTING_DOCS_URL}#sending-fails-but-reading-works`,
+    );
+  }
 
   const transport = nodemailer.createTransport({
     host,

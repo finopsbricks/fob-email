@@ -46,3 +46,14 @@ test('setAccountIdentity still works (delegates to setAccountProfile)', () => {
   cfg.setAccountIdentity('gmail', { address: 'other@gmail.com' });
   expect(cfg.resolveAccount('gmail').address).toBe('other@gmail.com');
 });
+
+test('setAccountProfile caches special-use folders; resolveAccount keeps them', () => {
+  cfg.addAccount('gm2', gmail);
+  cfg.setAccountProfile('gm2', {
+    address: 'me@gmail.com',
+    provider: 'gmail',
+    threadStrategy: 'thread-id',
+    folders: { drafts: '[Gmail]/Drafts', sent: '[Gmail]/Sent Mail', trash: null, junk: null, all: null },
+  });
+  expect(cfg.resolveAccount('gm2').folders.drafts).toBe('[Gmail]/Drafts');
+});

@@ -59,6 +59,9 @@ const AccountSchema = z.object({
   address: z.string().optional(),
   provider: z.string().optional(),
   threadStrategy: z.string().optional(),
+  // Special-use folder paths (drafts, sent, …) probed at add/refresh, so the
+  // drafts commands use the provider's real Drafts folder (e.g. `[Gmail]/Drafts`).
+  folders: z.record(z.string(), z.string().nullable()).optional(),
 });
 
 // -- storage layer -----------------------------------------------------------
@@ -133,17 +136,19 @@ export function setAccountIdentity(accountName, { address } = {}) {
 
 /**
  * Merge the server-probed, self-describing profile (D6) into a stored account as
- * non-secret metadata: `address` (decision G) + `provider` + `threadStrategy`.
+ * non-secret metadata: `address` (decision G) + `provider` + `threadStrategy` +
+ * special-use `folders`.
  * Only the fields provided are updated; credentials are left untouched. This is
  * the seam the capabilities probe (config accounts add/refresh) writes through.
  */
-export function setAccountProfile(accountName, { address, provider, threadStrategy } = {}) {
+export function setAccountProfile(accountName, { address, provider, threadStrategy, folders } = {}) {
   const cfg = loadConfig();
   if (!cfg.accounts[accountName]) throw new Error(`No account named '${accountName}'.`);
   const next = { ...cfg.accounts[accountName] };
   if (address !== undefined) next.address = address ?? null;
   if (provider !== undefined) next.provider = provider ?? null;
   if (threadStrategy !== undefined) next.threadStrategy = threadStrategy ?? null;
+  if (folders) next.folders = folders;
   cfg.accounts[accountName] = next;
   return saveConfig(cfg);
 }
@@ -181,7 +186,7 @@ export function resolveAccount(account) {
       Object.values(cfg.accounts ?? {})[0];
     if (!raw) {
       throw new Error(
-        `No email account configured. Set FOB_EMAIL_ACCOUNTS env, or run \`fob-email config accounts add <name>\` (${CONFIG_PATH}).`,
+        `No email account configured. Run \`fob-email getting-started\` for setup steps, or \`fob-email config accounts add <name>\`, or set FOB_EMAIL_ACCOUNTS (${CONFIG_PATH}).`,
       );
     }
   }

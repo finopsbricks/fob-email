@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 
 import { SCHEMA_SQL, SCHEMA_VERSION } from './schema.js';
 import { storePath } from './path.js';
+import { TROUBLESHOOTING_DOCS_URL } from '../links.js';
 
 /**
  * `node:sqlite` is loaded through `createRequire`, not `import`.
@@ -34,7 +35,7 @@ const require_ = createRequire(import.meta.url);
  *        (subjects, addresses, correspondence patterns), so it is user-private
  *        data and the file is created 0600 like config.yml.
  *
- * Backed by `node:sqlite` (Node >= 22.5, hence the engines floor). It is flagged
+ * Backed by `node:sqlite` (unflagged from Node 22.13, hence the engines floor). It is flagged
  * experimental upstream and prints a process warning unless the host suppresses
  * it; `isAvailable()` lets callers fail with a useful message instead of a
  * module-load crash on an older runtime.
@@ -70,8 +71,9 @@ export function openStore({ path } = {}) {
     sqlite = require_('node:sqlite');
   } catch {
     throw new Error(
-      'Local sync requires SQLite, which this Node build does not provide. ' +
-        'Upgrade to Node >= 22.5, or use the live (non-cached) commands.',
+      `Local sync needs Node.js 22.13 or later for its built-in SQLite (this is ${process.version}). ` +
+        'Upgrade Node.js, or use the live (non-cached) commands. ' +
+        `See ${TROUBLESHOOTING_DOCS_URL}#local-sync-requires-sqlite`,
     );
   }
 

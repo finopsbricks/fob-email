@@ -11,6 +11,7 @@
  * map (see config.js); the `config accounts` tree manages the former.
  */
 
+import { readFileSync } from 'node:fs';
 import yargs from 'yargs';
 
 import { safe } from './_helpers.js';
@@ -21,6 +22,12 @@ import { buildDraftsSubcommands } from './drafts/index.js';
 import { buildFoldersSubcommands } from './folders/index.js';
 import { buildSyncSubcommands } from './sync/index.js';
 import { buildConfigSubcommands } from './config/index.js';
+import { DOCS_URL, LANDING_URL } from '../links.js';
+
+// Read our own package.json: yargs' bare `.version()` looks for the package.json
+// above its own node_modules, which is the host project's (or none) when fob-email
+// is installed as a dependency.
+const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
 export function run(argv) {
   return yargs(argv)
@@ -42,11 +49,12 @@ export function run(argv) {
     .strict()
     .help()
     .alias('h', 'help')
-    .version()
+    .version(version)
     .alias('v', 'version')
     // Global options (inherited by every command) render under their own
     // heading; each command's own options stay under "Options:", shown first
     // via localOptions() in the command builders.
     .group(['help', 'version'], 'Global Options:')
+    .epilogue(`New here? Run \`fob-email getting-started\`.\nDocs: ${DOCS_URL}\nAbout: ${LANDING_URL}`)
     .parse();
 }
